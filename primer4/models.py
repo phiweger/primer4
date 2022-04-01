@@ -275,7 +275,7 @@ class PrimerPair():
     https://stackoverflow.com/questions/1305532/convert-nested-python-dict-to-object/9413295#9413295
     '''
     def __init__(self, d):
-        self.name = uuid4().__str__()
+        self.name = uuid4().__str__().split('-')[0]
         self.data = d
 
         for a, b in d.items():

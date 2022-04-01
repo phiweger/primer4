@@ -65,9 +65,10 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
 # https://click.palletsprojects.com/en/8.0.x/options/
 @click.command()
 @click.option('-i', '--order', type=click.Path(exists=True))
+@click.option('-o', '--outdir', type=str, default='results')
 @click.option('-d', '--fp-data', type=click.Path(exists=True), default='primer4/data')
 @click.option('-p', '--fp-config', type=click.Path(exists=True), default='config.json')
-def main(order, fp_data, fp_config):
+def main(order, outdir, fp_data, fp_config):
     
     print('Housekeeping ...')
     fp_genome = f'{fp_data}/GRCh37_latest_genomic.fna'
@@ -93,31 +94,34 @@ def main(order, fp_data, fp_config):
         }
 
     l = []
+    pout = Path(outdir)
+    pout.mkdir(exist_ok=True)
+    
     with open(order, 'r') as file:
         for line in file:
-            method, code = line.strip().split(',')
+            method, gene, code = line.strip().split(',')
+            
+            if method[0] == '#':
+                continue
             code = code.split('::')
 
             method = method.lower()
 
             print('\n\n', method, code)
             primers = gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
-            
+
             for pair in primers:
                 print(pair)
-
-            # Path('results').mkdir()
-            for pair in primers:
                 # if code[0] == 'NM_006087.4:c.745G>A' and pair.penalty < 1:
                     # pdb.set_trace()
 
-                with open(f'results/{pair.name}.json', 'w+') as out: 
+                with open(pout / f'{pair.name}.json', 'w+') as out: 
                     json.dump(pair.data, out, indent=4, sort_keys=True)
                 # print(pair.name)
                 # print(pair.data)
 
                 l.append(f'{line.strip()},{pair.name},{pair.penalty}\n')
 
-    with open('results.csv', 'w+') as out:
+    with open(f'{outdir}.csv', 'w+') as out:
         for i in l:
             out.write(i)

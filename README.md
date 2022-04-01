@@ -44,7 +44,6 @@ Then set the absolute (!) path to the data in `nextflow.config`. If you use othe
 ```bash
 primer4 -i order.csv -d /path/to/primer4/data -p /path/to/primer4/config.json
 
-
 # DEPRECATED
 cat input.csv
 # name,method,variant
@@ -53,6 +52,17 @@ cat input.csv
 
 nextflow run workflow/main.nf --input input.csv --results designs
 ```
+
+
+## Run with Docker
+
+```bash
+docker build -t foobar .
+# This part is important! .../primer4/data:/primer4/data
+docker run -v $PWD:/workdir -v .../primer4/data:/primer4/data -it -t foobar /bin/bash
+primer4 -i /workdir/order.csv -d /primer4/data/ -p /workdir/config.json
+```
+
 
 
 ## Data provenance

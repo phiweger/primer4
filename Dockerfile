@@ -15,7 +15,7 @@ RUN conda install -y python=3.8 pandas=1.3.5 numpy=1.22.0 click=8.0.3 pip=21.3.1
 RUN conda install -y -c bioconda hgvs=1.5.1 blast=2.12.0 pyfaidx=0.6.3.1 gffutils=0.10.1 pysam=0.17.0 primer3-py=0.6.1
 
 RUN pip install cdot==0.2.2
-RUN git clone https://github.com/phiweger/primer && cd primer && pip install -e .
+RUN git clone https://github.com/phiweger/primer4 && cd primer4 && pip install -e .
 # hgvs alternative https://github.com/counsyl/hgvs
 
-RUN conda clean -a
+RUN conda clean -y -a

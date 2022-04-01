@@ -5,8 +5,10 @@ import re
 import subprocess
 import tempfile
 
+import numpy as np
 import pandas as pd
 import primer3
+from tqdm import tqdm
 
 from primer4.models import PrimerPair
 
@@ -139,7 +141,7 @@ def sort_penalty(primers):
     return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
 
 
-def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=10, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15):
+def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000):
     '''
     Params mostly from ISPCR from UCSC genome browser:
 
@@ -158,7 +160,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=10,
     fields = 'qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore nident btop sstrand'
     steps = [
         f'cat {p}/*.fna > {p}/pseudo.fna',
-        f'blastn -dust no -word_size {word_size} -evalue {mx_evalue} -outfmt "6 {fields}" -query {p}/pseudo.fna -db {fp_genome} -out {p}/result'
+        f'blastn -dust no -word_size {word_size} -evalue {mx_evalue} -outfmt "6 {fields}" -query {p}/pseudo.fna -db {fp_genome} -num_threads {n_cpus} -out {p}/result'
     ]
     '''
     > The “Blast trace-back operations” (BTOP) string describes the alignment produced by BLAST. -- https://www.ncbi.nlm.nih.gov/books/NBK569862
@@ -166,6 +168,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=10,
     Examples: 7AG39, 7A-39, 6-G-A41
     '''
     command = '; '.join(steps)
+    print('Running Blastn')
     log = subprocess.run(command, capture_output=True, shell=True)
     # print(log)
 
@@ -173,24 +176,46 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=10,
     df = pd.read_csv(result, sep='\t', names=fields.split(' '))
     df = df.astype({'btop': str})
 
+
+    drop_these = []
+    for ix, i in df.iterrows():
+        try:
+            # Try to parse the number of 3' matches (get the last number)
+            # https://stackoverflow.com/questions/5320525/regular-expression-to-match-last-number-in-a-string
+            matches_3prime = int(re.match(r'.*?(\d+)(?!.*\d)', i['btop']).group(1))
+            if matches_3prime < mn_matches:
+                drop_these.append(ix)
+        except ValueError:
+            # Gap or mismatch in last position, so cannot cast string to int
+            # invalid literal for int() with base 10: ...
+            continue
+
+    # print(f'Dataframe before: {len(df)}')
+    df.drop(df.index[drop_these], inplace=True)
+    # print(f'Dataframe after: {len(df)}')
+    
     unique = set([i.split('.')[0] for i in df['qseqid']])
     
+    print('Combinatorics ...')
     cnt = defaultdict(int)
     for u in unique:
-        fwd = [dict(v) for _, v in df[df['qseqid'] == f'{u}.fwd'].iterrows()]
-        rev = [dict(v) for _, v in df[df['qseqid'] == f'{u}.rev'].iterrows()]
+
+        fwd_df = df[df['qseqid'] == f'{u}.fwd']
+        rev_df = df[df['qseqid'] == f'{u}.rev']
+
+        # If there are too many Blastn hits for a primer pair, the fwd-rev
+        # combinations explode thanks to combinatorics. So we make a hard cut
+        # and ignore these "abundant" sequences.
+        if (len(fwd_df) > mx_blast_hits) or (len(rev_df) > mx_blast_hits):
+            cnt[u] = np.Inf
+            continue
+
+        fwd = [dict(v) for _, v in fwd_df.iterrows()]
+        rev = [dict(v) for _, v in rev_df.iterrows()]
     
+        # pr = list(product(fwd, rev))
+        # for i, j in tqdm(pr, total=len(pr)):
         for i, j in product(fwd, rev):
-            try:
-                # Try to parse the number of 3' matches (get the last number)
-                # https://stackoverflow.com/questions/5320525/regular-expression-to-match-last-number-in-a-string
-                i_match = int(re.match(r'.*?(\d+)(?!.*\d)', i['btop']).group(1))
-                j_match = int(re.match(r'.*?(\d+)(?!.*\d)', j['btop']).group(1))
-            except ValueError:
-                # Gap or mismatch in last position, so cannot cast string to int
-                # invalid literal for int() with base 10: ...
-                continue
-    
             # Same contig?
             if not i['sseqid'] == j['sseqid']:
                 continue
@@ -217,11 +242,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=10,
             else:
                 amplicon = j['sstart'] - i['send']
     
-            if all([
-                amplicon < mx_amplicon_len,
-                i_match >= mn_matches,
-                j_match >= mn_matches]):
-                
+            if amplicon < mx_amplicon_len:
                 cnt[u] += 1
                 # print(i)
                 # print(j)

@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+import pdb
 
 from cdot.hgvs.dataproviders import JSONDataProvider
 import gffutils
@@ -67,6 +69,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
 @click.option('-p', '--fp-config', type=click.Path(exists=True), default='config.json')
 def main(order, fp_data, fp_config):
     
+    print('Housekeeping ...')
     fp_genome = f'{fp_data}/GRCh37_latest_genomic.fna'
     fp_coords = f'{fp_data}/cdot-0.2.1.refseq.grch37_grch38.json.gz'
     fp_annotation = f'{fp_data}/hg19-p13_annotation_bak.db'
@@ -89,14 +92,32 @@ def main(order, fp_data, fp_config):
         'ESP': fp_snvs_3
         }
 
+    l = []
     with open(order, 'r') as file:
         for line in file:
-            method, *code = line.strip().split(',')
+            method, code = line.strip().split(',')
+            code = code.split('::')
 
             method = method.lower()
 
-            print(method, code)
+            print('\n\n', method, code)
             primers = gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
             
             for pair in primers:
                 print(pair)
+
+            # Path('results').mkdir()
+            for pair in primers:
+                # if code[0] == 'NM_006087.4:c.745G>A' and pair.penalty < 1:
+                    # pdb.set_trace()
+
+                with open(f'results/{pair.name}.json', 'w+') as out: 
+                    json.dump(pair.data, out, indent=4, sort_keys=True)
+                # print(pair.name)
+                # print(pair.data)
+
+                l.append(f'{line.strip()},{pair.name},{pair.penalty}\n')
+
+    with open('results.csv', 'w+') as out:
+        for i in l:
+            out.write(i)

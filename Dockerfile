@@ -10,7 +10,7 @@ RUN conda config --add channels conda-forge && \
     conda config --add channels default
 
 # And some more dependencies
-RUN conda install -y python=3.8 pandas=1.3.5 numpy=1.22.0 click=8.0.3 pip=21.3.1 pytest=6.2.5
+RUN conda install -y python=3.8 pandas=1.3.5 numpy=1.22.0 click=8.0.3 pip=21.3.1 pytest=6.2.5 tqdm=4.62.3
 
 RUN conda install -y -c bioconda hgvs=1.5.1 blast=2.12.0 pyfaidx=0.6.3.1 gffutils=0.10.1 pysam=0.17.0 primer3-py=0.6.1
 

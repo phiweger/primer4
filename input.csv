@@ -1,0 +1,4 @@
+name,method,variant
+ABCA4_v1_pcr,PCR,NM_000350.3:c.4234C>T
+ABCA4_v1_qpcr,qPCR,NM_000350.3:c.4234C>T
+ABCA4_v2,PCR,NM_000350.3:c.4773+3A>G

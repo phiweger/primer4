@@ -44,12 +44,15 @@ Then set the absolute (!) path to the data in `nextflow.config`. If you use othe
 ```bash
 primer4 -i order.csv -d /path/to/primer4/data -p /path/to/primer4/config.json
 
+# Args after "--"
+# https://discuss.streamlit.io/t/command-line-arguments/386/4
+streamlit run primer4/primer4/stream.py -- -i "sanger,RARS1,NM_002887.4:c.1846_1847del" ...
+
 # DEPRECATED
 cat input.csv
 # name,method,variant
 # ABCA4_v1,PCR,NM_000350.3:c.4234C>T
 # ABCA4_v2,PCR,NM_000350.3:c.4773+3A>G
-
 nextflow run workflow/main.nf --input input.csv --results designs
 ```
 

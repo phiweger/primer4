@@ -1,3 +1,8 @@
+<p align="center">
+    <img src="img/logo.png" alt="A rabbit" width="400">
+</p>
+
+
 ## README
 
 _Please note: This repo is in full development, please handle with care._

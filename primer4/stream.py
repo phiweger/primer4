@@ -105,7 +105,6 @@ def housekeeping(fp_data, fp_config):
     return fp_genome, genome, hdp, params, vardbs
 
 
-
 def main(order, outdir, fp_data, fp_config):
     fp_genome, genome, hdp, params, vardbs = housekeeping(fp_data, fp_config)
 
@@ -117,22 +116,41 @@ def main(order, outdir, fp_data, fp_config):
     pout = Path(outdir)
     pout.mkdir(exist_ok=True)
 
-    order = st.text_input('Primer order', '')
-    # st.write('Gimme some primers for', order)
+    # The menu
+    # https://docs.streamlit.io/library/api-reference/widgets
 
-    if not order:
-        return None
-
-    method, gene, code = order.strip().split(',')
-    code = code.split('::')
-    method = method.lower()
-    st.write(method, code)
     
-    primers = gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
+    # Form
+    # https://docs.streamlit.io/library/api-reference/control-flow/st.form
+
+    with st.form("my_form"):
+        method = st.selectbox(
+            'What method?',
+            ('Sanger', 'qPCR', 'mRNA'))
+        order = st.text_input('Primer order', '')
+        mask_variants = st.checkbox('Mask variants', value=True)
+    
+        # Every form must have a submit button.
+        submitted = st.form_submit_button('Gimme some primers!')
+        
+        if submitted:
+            if not order:
+                return None
+            else:
+                code = order.split('::')
+                method = method.lower()
+                st.write(method, code)
+    
+                primers = gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
+                st.write('Done.')
+        else:
+            return None
+
+    # method, gene, code = order.strip().split('::')
 
     l = []
     for pair in primers:
-        st.write(pair, pair.data['fwd'], pair.data['rev'])
+        # st.write(pair, pair.data['fwd'], pair.data['rev'])
         # if code[0] == 'NM_006087.4:c.745G>A' and pair.penalty < 1:
             # pdb.set_trace()
 
@@ -143,9 +161,17 @@ def main(order, outdir, fp_data, fp_config):
 
         l.append(f'{order},{pair.name},{pair.penalty}\n')
 
-    with open(f'{outdir}.csv', 'w+') as out:
-        for i in l:
-            out.write(i)
+    # with open(f'{outdir}.csv', 'w+') as out:
+    #     for i in l:
+    #         out.write(i)
+    
+
+    # TODO: st.table
+    # https://docs.streamlit.io/library/api-reference/data
+
+    
+    # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-file-streamlit
+    st.download_button('Anneal me', ''.join(l), 'primers.csv')
 
     return None
 

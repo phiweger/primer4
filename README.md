@@ -37,7 +37,8 @@ conda install -y python=3.8 pandas=1.3.5 numpy=1.22.0 click=8.0.3 pip=21.3.1 pyt
 
 conda install -y -c bioconda hgvs=1.5.1 blast=2.12.0 pyfaidx=0.6.3.1 gffutils=0.10.1 pysam=0.17.0 primer3-py=0.6.1
 
-pip install cdot=0.2.2
+# pip needs "==" instead of "="
+pip install cdot==0.2.2 biocommons.seqrepo==0.6.5
 pip install streamlit==1.8.1
 git clone github.com/phiweger/primer4 && cd primer4 && pip install -e .
 # hgvs alternative https://github.com/counsyl/hgvs
@@ -46,15 +47,26 @@ git clone github.com/phiweger/primer4 && cd primer4 && pip install -e .
 Then set the absolute (!) path to the data in `nextflow.config`. If you use other reference genomes/ annotations/ variant databases, you also have to adjust the filenames in `config.json`.
 
 
-
 ## Run
 
 ```bash
 primer4 -i order.csv -d /path/to/primer4/data -p /path/to/primer4/config.json
 
+# For local execution:
+# - https://github.com/biocommons/hgvs/issues/634
+# - https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
+#
+# pip install biocommons.seqrepo
+# mkdir /usr/local/share/seqrepo
+# (sudo) seqrepo -r /usr/local/share/seqrepo pull
+# export HGVS_SEQREPO_DIR=/usr/local/share/seqrepo/2021-01-29
+# There is even a docker container
+# https://github.com/biocommons/biocommons.seqrepo/blob/main/docs/docker.rst
+
 # Args after "--"
 # https://discuss.streamlit.io/t/command-line-arguments/386/4
 streamlit run primer4/primer4/stream.py -- -i "sanger,RARS1,NM_002887.4:c.1846_1847del" ...
+streamlit run .../stream.py -- -d .../primer4/data -p .../primer4/config.json
 
 # DEPRECATED
 cat input.csv
@@ -71,6 +83,7 @@ nextflow run workflow/main.nf --input input.csv --results designs
 docker build -t foobar .
 # This part is important! .../primer4/data:/primer4/data
 docker run -v $PWD:/workdir -v .../primer4/data:/primer4/data -it -t foobar /bin/bash
+
 primer4 -i /workdir/order.csv -d /primer4/data/ -p /workdir/config.json
 ```
 
@@ -78,11 +91,26 @@ primer4 -i /workdir/order.csv -d /primer4/data/ -p /workdir/config.json
 
 ## Data provenance
 
+```
+# For local execution:
+# - https://github.com/biocommons/hgvs/issues/634
+# - https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
+#
+# pip install biocommons.seqrepo
+# mkdir /usr/local/share/seqrepo
+# (sudo) seqrepo -r /usr/local/share/seqrepo pull
+# export HGVS_SEQREPO_DIR=/usr/local/share/seqrepo/2021-01-29
+# There is even a docker container
+# https://github.com/biocommons/biocommons.seqrepo/blob/main/docs/docker.rst
+```
+
+
 You need to get three things, which need to correspond to one another:
 
 1. reference genome
 2. SNPs
 3. annotation
+4. offline transcript selection
 
 Below, we'll use the files corresponding to the human genome `hg19` (v13, [NCBI](https://www.ncbi.nlm.nih.gov/genome/guide/human/), last access 2022-02-03).
 
@@ -162,6 +190,15 @@ db = gffutils.create_db(
 # Takes a couple of hours on a regular laptop, then use like
 db = gffutils.FeatureDB('hg19-p13_annotation.db', keep_order=True)
 db['exon-NR_024540.1-3']
+```
+
+
+```bash
+# https://github.com/biocommons/hgvs/issues/634
+# https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
+pip install biocommons.seqrepo
+sudo seqrepo -r seqrepo pull
+export HGVS_SEQREPO_DIR=${PWD}/seqrepo/2021-01-29
 ```
 
 

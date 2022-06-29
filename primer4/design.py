@@ -8,6 +8,7 @@ import tempfile
 import numpy as np
 import pandas as pd
 import primer3
+import streamlit as st
 from tqdm import tqdm
 
 from primer4.models import PrimerPair
@@ -141,7 +142,7 @@ def sort_penalty(primers):
     return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
 
 
-def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000):
+def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000, test=False):
     '''
     Params mostly from ISPCR from UCSC genome browser:
 
@@ -150,12 +151,30 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     mx_amplicon_len = 4000
     mx_amplicon_n = 1  # pseudogene and unwanted amplification check
     mn_matches = 15    # 3' matches
+
+    Testing:
+
+    check_for_multiple_amplicons(
+        ('GAGGAAGGCTTTTCGGCATC', 'CTGCGGGAAGCACAGGACAC'),
+        'path/to/primer4/data/GRCh37_latest_genomic.fna',
+        test=True)
     '''
     tmpdir = tempfile.TemporaryDirectory()
     p = tmpdir.name
 
-    for primer in primers:
-        primer.save(f'{p}/{primer.name}.fna')
+    if not test:
+        for primer in primers:
+            primer.save(f'{p}/{primer.name}.fna')
+    else:
+        Primer = namedtuple('PrimerPair', ['name', 'sequences'])
+        pp = Primer('foobar', sequences=primers)
+        ####################################################
+        with open(f'{p}/{pp.name}.fna', 'w+') as out:
+            out.write(f'>fwd\n{pp.sequences[0]}\n')
+            out.write(f'>rev\n{pp.sequences[1]}\n')
+
+        primers = [pp]
+
 
     fields = 'qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore nident btop sstrand'
     steps = [
@@ -176,7 +195,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     df = pd.read_csv(result, sep='\t', names=fields.split(' '))
     df = df.astype({'btop': str})
 
-
+    # print(df)
     drop_these = []
     for ix, i in df.iterrows():
         try:
@@ -257,6 +276,8 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
             results.append(primer)
         else:
             print(f'Primer pair {primer.name} does not pass, amplicons calculated: {cnt[primer.name]}')
+    # print(results)
     print(f'{len(results)}/{len(primers)} primer pairs pass all filters')
+    st.write(f'{len(results)}/{len(primers)} primer pairs pass all filters')
     return results
 

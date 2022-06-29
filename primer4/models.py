@@ -273,6 +273,15 @@ class Template():
 class PrimerPair():
     '''
     https://stackoverflow.com/questions/1305532/convert-nested-python-dict-to-object/9413295#9413295
+
+    pair.data['fwd']
+    
+    {
+        "start": 10896,
+        "end": 10918,
+        "sequence": "ACGTCTGAAAATGACCCTCACT",
+        "Tm": 59.63
+    }
     '''
     def __init__(self, d):
         self.name = uuid4().__str__().split('-')[0]

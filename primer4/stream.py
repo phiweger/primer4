@@ -159,7 +159,7 @@ def main(order, outdir, fp_data, fp_config):
         # print(pair.name)
         # print(pair.data)
 
-        l.append(f'{order},{pair.name},{pair.penalty}\n')
+        l.append(f"{order},{pair.name},{pair.penalty},{pair.data['fwd']['sequence']},{pair.data['fwd']['Tm']},{pair.data['rev']['sequence']},{pair.data['rev']['Tm']}\n")
 
     # with open(f'{outdir}.csv', 'w+') as out:
     #     for i in l:

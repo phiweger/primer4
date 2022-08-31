@@ -12,7 +12,7 @@ In human genetics, an important task is validating mutations that have been foun
 This workflow automates the design of PCR and qPCR primers. As input, it takes either:
 
 - an HGVS-formatted mutation, e.g. `NM_000546.6:c.215C>G` (for PCR)
-- a gene name and exon number, e.g. `NM_007294.4:14` (for qPCR)
+- a gene name and exon number, e.g. `NM_007294.4::14` (for qPCR)
 
 The workflow will:
 
@@ -65,8 +65,24 @@ primer4 -i order.csv -d /path/to/primer4/data -p /path/to/primer4/config.json
 
 # Args after "--"
 # https://discuss.streamlit.io/t/command-line-arguments/386/4
+
+export HGVS_SEQREPO_DIR=/Users/phi/data_local/seqrepo/2021-01-29/
+# https://github.com/biocommons/hgvs/blob/15c393741ee5064e64fd4df0ac687d69a315520a/docs/installation.rst#installing-seqrepo-optional
+
+# cdot replaces UTA
+
 streamlit run primer4/primer4/stream.py -- -i "sanger,RARS1,NM_002887.4:c.1846_1847del" ...
 streamlit run .../stream.py -- -d .../primer4/data -p .../primer4/config.json
+
+# eg
+cd /Users/phi/Dropbox/repos/primer4
+streamlit run primer4/stream.py -- -d data -p config.json
+
+# 2022-08-26 10:36:29.638 hgvs 1.5.1; released: True
+# Housekeeping ...
+# 2022-08-26 10:36:50.535 biocommons.seqrepo 0.6.5
+# 2022-08-26 10:36:50.561 Fetching sequences with SeqRepo (/Users/phi/data_local/seqrepo/2021-01-29/)
+
 
 # DEPRECATED
 cat input.csv
@@ -74,6 +90,21 @@ cat input.csv
 # ABCA4_v1,PCR,NM_000350.3:c.4234C>T
 # ABCA4_v2,PCR,NM_000350.3:c.4773+3A>G
 nextflow run workflow/main.nf --input input.csv --results designs
+```
+
+
+On local tx lookup:
+
+
+```
+> Tools to map variants between genome, transcript, and protein sequences -- https://github.com/biocommons/hgvs
+
+Combine with https://github.com/biocommons/hgvs/issues/634
+
+> Consider installing seqrepo to obviate remote sequence lookups.
+
+- https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
+- `HGVS_SEQREPO_DIR`
 ```
 
 
@@ -86,7 +117,6 @@ docker run -v $PWD:/workdir -v .../primer4/data:/primer4/data -it -t foobar /bin
 
 primer4 -i /workdir/order.csv -d /primer4/data/ -p /workdir/config.json
 ```
-
 
 
 ## Data provenance

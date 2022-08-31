@@ -83,16 +83,23 @@ fp_config = args.fp_config
 @st.cache(allow_output_mutation=True)
 def housekeeping(fp_data, fp_config):
     print('Housekeeping ...')
-    fp_genome = f'{fp_data}/GRCh37_latest_genomic.fna'
-    fp_coords = f'{fp_data}/cdot-0.2.1.refseq.grch37_grch38.json.gz'
+    p = Path(fp_data)
+    assert p.exists(), 'Data path does not exist, exit.'
     
-    fp_snvs_1 = f'{fp_data}/GRCh37_latest_dbSNP_all.vcf.gz'
-    fp_snvs_2 = f'{fp_data}/ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz'
-    fp_snvs_3 = f'{fp_data}/ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz'
+    fp_genome = str(p / 'GRCh37_latest_genomic.fna')
+    fp_coords = str(p / 'cdot-0.2.1.refseq.grch37_grch38.json.gz')
+    fp_annotation = str(p / 'hg19-p13_annotation_bak.db')
+    # fp_annotation = f'{fp_data}/hg19-p13_annotation.db'
+    
+    fp_snvs_1 = str(p / 'GRCh37_latest_dbSNP_all.vcf.gz')
+    fp_snvs_2 = str(p / 'ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz')
+    fp_snvs_3 = str(p / 'ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz')
 
     genome = Fasta(fp_genome)
     hdp = JSONDataProvider([fp_coords])
     
+    # TODO:
+    # os.environ['HGVS_SEQREPO_DIR'] = '.../seqrepo/2021-01-29/'
     
     with open(fp_config, 'r') as file:
         params = json.load(file)
@@ -108,10 +115,13 @@ def housekeeping(fp_data, fp_config):
 def main(order, outdir, fp_data, fp_config):
     fp_genome, genome, hdp, params, vardbs = housekeeping(fp_data, fp_config)
 
-    fp_annotation = f'{fp_data}/hg19-p13_annotation_bak.db'
-    db = gffutils.FeatureDB(fp_annotation, keep_order=True)
+    # Why is "fp_annotation" here?
     # Cannot be opened by housekeeping bc/ second iteration will cause:
     # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
+    p = Path(fp_data)
+    assert p.exists(), 'Data path does not exist, exit.'
+    fp_annotation = str(p / 'hg19-p13_annotation_bak.db')
+    db = gffutils.FeatureDB(fp_annotation, keep_order=True)
 
     pout = Path(outdir)
     pout.mkdir(exist_ok=True)
@@ -127,7 +137,16 @@ def main(order, outdir, fp_data, fp_config):
         method = st.selectbox(
             'What method?',
             ('Sanger', 'qPCR', 'mRNA'))
-        order = st.text_input('Primer order', '')
+        order = st.text_input('Variant', '')
+
+        st.markdown(
+            r'''
+            Examples:
+
+            NM_000546.6:c.215C>G
+            NM_000546.6::3 (note the double "::")
+            ''')
+
         mask_variants = st.checkbox('Mask variants', value=True)
     
         # Every form must have a submit button.

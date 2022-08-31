@@ -1,0 +1,16 @@
+{
+    "fwd": {
+        "Tm": 58.86,
+        "end": 7520,
+        "sequence": "CCAAACAAAAGAAATGCAGGGG",
+        "start": 7498
+    },
+    "insert": 519,
+    "penalty": 4.1442,
+    "rev": {
+        "Tm": 60.0,
+        "end": 8017,
+        "sequence": "TCCATGGGACTGACTTTCTGC",
+        "start": 7996
+    }
+}

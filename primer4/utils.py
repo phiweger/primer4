@@ -528,7 +528,7 @@ def parse_snpdb(line):
         return max(l)
 
 
-def load_variation(feat, databases):
+def load_variation(feat, databases, max_variation):
     '''
     feat .. gffutils feature type
     
@@ -559,28 +559,34 @@ def load_variation(feat, databases):
             # pos = i.pos - feat.start - 1  # TODO: -1 here?
             pos = i.pos - feat.start
 
+            # TODO: missing "max_variation"
             if name == 'dbSNP':
                 if info.get('FREQ'):
                     x = parse_snpdb(','.join(info.get('FREQ')))
                     freqs[pos].append((name, x))
-                
-                if info.get('COMMON'):
-                    mask.add(pos)
+                    # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', 7.96 ...
+                    if x >= max_variation:
+                        mask.add(pos)
+
+                #if info.get('COMMON'):
+                #    # print(name, x)
+                #    mask.add(pos)
 
             elif name == '1000Genomes':
                 x = float(info['AF'][0])
                 freqs[pos].append((name, x))
-                if x >= 0.01:
+                if x >= max_variation:
                     mask.add(pos)
             
             elif name == 'ESP':
-                x = float(info['MAF'][0])
+                x = float(info['MAF'][0]) / 100  # in database from 1 .. 100
                 freqs[pos].append((name, x))
-                if x >= 1:
+                if x >= max_variation:
                     mask.add(pos)
 
             else:
                 print(f'"{name}" is not a valid variant database')
+
     return mask, freqs
 
 

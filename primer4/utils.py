@@ -350,9 +350,13 @@ def design_primers(method, params, masked, constraints):
 def log(message):
     '''
     https://stackoverflow.com/questions/13890935/does-pythons-time-time-return-the-local-or-utc-timestamp
+
+    2022-09-09 11:06:02.593 Fetching ...
     '''
-    now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-    return f'[{now}]\t{message}'
+    # now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    now = datetime.datetime.now().__str__()[:-3]
+    # return f'[{now}]\t{message}'
+    return f'{now} {message}'
 
 
 def parse_design(design, n, pname, g_pos, chromosome, masked):

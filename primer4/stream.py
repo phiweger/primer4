@@ -3,6 +3,7 @@ streamlit run primer4/stream.py -- -c config.json
 '''
 
 
+import argparse
 import json
 from pathlib import Path
 import pdb
@@ -24,10 +25,7 @@ from primer4.warnings import warn
 
 def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params, max_variation):
     '''
-    fp_data = '/Users/phi/Dropbox/repos/primer4/data'
-    fp_config = '/Users/phi/Dropbox/repos/primer4/config.json'
-
-    gimme_some_primers('sanger', 'NM_000546.6:c.215C>G', fp_data, fp_config)
+    gimme_some_primers('sanger', 'NM_000546.6:c.215C>G', ...)
     gimme_some_primers('qpcr', ('NM_001145408.2', 6), ...)
     gimme_some_primers('mrna', ('NM_000546.6', 6, 7), ...)
     '''
@@ -71,14 +69,6 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     return results
 
 
-
-import argparse
-
-parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-c', '--fp-config')
-args = parser.parse_args()
-
-
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
 # https://discuss.streamlit.io/t/unhashabletype-cannot-hash-object-of-type-thread-local/1917
 @st.cache(allow_output_mutation=True)
@@ -87,18 +77,6 @@ def housekeeping(fp_config):
 
     with open(fp_config, 'r') as file:
         params = json.load(file)
-
-    #fp_genome = str(p / 'GRCh37_latest_genomic.fna')
-    #fp_coords = str(p / 'cdot-0.2.1.refseq.grch37_grch38.json.gz')
-    
-    
-    #fp_annotation = params['data']['annotation']
-    # fp_annotation = str(p / 'hg19-p13_annotation_bak.db')
-    # fp_annotation = f'{fp_data}/hg19-p13_annotation.db'
-    
-    #fp_snvs_1 = str(p / 'GRCh37_latest_dbSNP_all.vcf.gz')
-    #fp_snvs_2 = str(p / 'ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz')
-    #fp_snvs_3 = str(p / 'ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz')
 
     fp_genome = params['data']['reference']
     fp_coords = params['data']['coordinates']
@@ -131,6 +109,16 @@ def housekeeping(fp_config):
     return genome, hdp, params, vardbs
 
 
+# ------------------------------------------------------------------------------
+# Run
+# ------------------------------------------------------------------------------
+
+
+parser = argparse.ArgumentParser(description='Process some integers.')
+parser.add_argument('-c', '--fp-config')
+args = parser.parse_args()
+
+
 def main(fp_config):
     genome, hdp, params, vardbs = housekeeping(fp_config)
 
@@ -138,9 +126,6 @@ def main(fp_config):
     # Cannot be opened by housekeeping bc/ second iteration will cause:
     # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
     db = gffutils.FeatureDB(params['data']['annotation'], keep_order=True)
-
-    #pout = Path(outdir)
-    #pout.mkdir(exist_ok=True)
 
     st.markdown(
         r'''
@@ -183,17 +168,13 @@ def main(fp_config):
             amplicon_len_max = st.number_input('max length [bp]', value=600)
         with col4:
             max_variation = st.number_input('Allele frequency [%]', min_value=0., max_value=100., value=0., step=0.01) / 100
-            # mask_variants = st.checkbox('Ignore variants', value=False)
     
-
         # Every form must have a submit button.
         submitted = st.form_submit_button(
             'Run',
             on_click=warn(method, params, amplicon_len_min, amplicon_len_max))
         
         if submitted:
-            # st.write(params)
-
             if not order:
                 st.write('Please provide a query')
                 return None
@@ -207,9 +188,6 @@ def main(fp_config):
                 st.write('Done.')
         else:
             return None
-
-    # method, gene, code = order.strip().split('::')
-
     # What's in "primers"?
     # import pdb
     # pdb.set_trace()
@@ -228,7 +206,7 @@ def main(fp_config):
 
     # Any primers found?
     if not l:
-        st.write('No primers found under the provided constrains. Relax!')
+        st.write('No primers found under the provided constrains. Relax! (the constraints)')
     
     else:
         # Display dataframe
@@ -238,11 +216,9 @@ def main(fp_config):
         # st.table(df)
         st.dataframe(df)
 
-
         # Plot something
         data = prepare_data_for_vis()
         _ = Beauty(data).plot()
-
 
         # Download
         # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-pandas-dataframe-csv
@@ -265,7 +241,4 @@ def main(fp_config):
 
 if __name__ == '__main__':
     main(args.fp_config)
-
-
-
 

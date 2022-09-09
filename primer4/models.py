@@ -256,8 +256,9 @@ class Template():
         # Apply fn
         return self.methods[fn](self, feature_db, params, *args, **kwargs)
 
-    def load_variation_(self, databases):
-        self.mask = load_variation(self.feat, databases)
+    def load_variation_(self, databases, max_variation=0.01):
+        self.mask, self.mask_freqs = load_variation(
+            self.feat, databases, max_variation)
         return None
 
     # def mask_sequence(self, genome, mask='N', unmasked=''):

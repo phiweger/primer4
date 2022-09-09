@@ -12,7 +12,7 @@ In human genetics, an important task is validating mutations that have been foun
 This workflow automates the design of PCR and qPCR primers. As input, it takes either:
 
 - an HGVS-formatted mutation, e.g. `NM_000546.6:c.215C>G` (for PCR)
-- a gene name and exon number, e.g. `NM_007294.4:14` (for qPCR)
+- a gene name and exon number, e.g. `NM_007294.4::14` (for qPCR)
 
 The workflow will:
 
@@ -28,89 +28,46 @@ The workflow will:
 
 ```bash
 conda install -y -n primer -c bioconda nextflow && conda activate primer
-git clone https://github.com/phiweger/primer && cd primer
+git clone github.com/phiweger/primer4 && cd primer4 && pip install -e .
 mkdir data
-# ^ add data in there, see below
+# ^ add data (see below) in here, see below; or put somewhere else and change
+# paths in config.json
 
 # And some more dependencies
 conda install -y python=3.8 pandas=1.3.5 numpy=1.22.0 click=8.0.3 pip=21.3.1 pytest=6.2.5
-
 conda install -y -c bioconda hgvs=1.5.1 blast=2.12.0 pyfaidx=0.6.3.1 gffutils=0.10.1 pysam=0.17.0 primer3-py=0.6.1
 
 # pip needs "==" instead of "="
-pip install cdot==0.2.2 biocommons.seqrepo==0.6.5
+pip install cdot==0.2.2
 pip install streamlit==1.8.1
-git clone github.com/phiweger/primer4 && cd primer4 && pip install -e .
+
 # hgvs alternative https://github.com/counsyl/hgvs
 ```
-
-Then set the absolute (!) path to the data in `nextflow.config`. If you use other reference genomes/ annotations/ variant databases, you also have to adjust the filenames in `config.json`.
 
 
 ## Run
 
 ```bash
-primer4 -i order.csv -d /path/to/primer4/data -p /path/to/primer4/config.json
-
-# For local execution:
-# - https://github.com/biocommons/hgvs/issues/634
-# - https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
-#
-# pip install biocommons.seqrepo
-# mkdir /usr/local/share/seqrepo
-# (sudo) seqrepo -r /usr/local/share/seqrepo pull
-# export HGVS_SEQREPO_DIR=/usr/local/share/seqrepo/2021-01-29
-# There is even a docker container
-# https://github.com/biocommons/biocommons.seqrepo/blob/main/docs/docker.rst
-
-# Args after "--"
+streamlit run primer4/stream.py -- -c config.json
+# Args after "--":
 # https://discuss.streamlit.io/t/command-line-arguments/386/4
-streamlit run primer4/primer4/stream.py -- -i "sanger,RARS1,NM_002887.4:c.1846_1847del" ...
-streamlit run .../stream.py -- -d .../primer4/data -p .../primer4/config.json
-
-# DEPRECATED
-cat input.csv
-# name,method,variant
-# ABCA4_v1,PCR,NM_000350.3:c.4234C>T
-# ABCA4_v2,PCR,NM_000350.3:c.4773+3A>G
-nextflow run workflow/main.nf --input input.csv --results designs
 ```
 
 
 ## Run with Docker
 
-```bash
-docker build -t foobar .
-# This part is important! .../primer4/data:/primer4/data
-docker run -v $PWD:/workdir -v .../primer4/data:/primer4/data -it -t foobar /bin/bash
-
-primer4 -i /workdir/order.csv -d /primer4/data/ -p /workdir/config.json
-```
-
+TODO
 
 
 ## Data provenance
 
-```
-# For local execution:
-# - https://github.com/biocommons/hgvs/issues/634
-# - https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
-#
-# pip install biocommons.seqrepo
-# mkdir /usr/local/share/seqrepo
-# (sudo) seqrepo -r /usr/local/share/seqrepo pull
-# export HGVS_SEQREPO_DIR=/usr/local/share/seqrepo/2021-01-29
-# There is even a docker container
-# https://github.com/biocommons/biocommons.seqrepo/blob/main/docs/docker.rst
-```
+You need to get several things, and versions need to correspond to one another:
 
-
-You need to get three things, which need to correspond to one another:
-
-1. reference genome
-2. SNPs
-3. annotation
-4. offline transcript selection
+1. (human) reference genome
+2. variants
+3. transcript annotation
+4. transcript coordinate mappings
+5. transcript sequence data < optional
 
 Below, we'll use the files corresponding to the human genome `hg19` (v13, [NCBI](https://www.ncbi.nlm.nih.gov/genome/guide/human/), last access 2022-02-03).
 
@@ -165,6 +122,7 @@ tabix -p vcf ${DB}.gz
 # - hg19-p13_annotation.db
 ```
 
+
 Get it from [OSF](https://osf.io) (project ID [7csav](https://osf.io/7csav/)); here is how we created it:
 
 
@@ -173,6 +131,7 @@ wget https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh37_latest/refs
 gunzip GRCh37_latest_genomic.gff.gz
 # switch to Python
 ```
+
 
 ```python
 import gffutils
@@ -194,17 +153,28 @@ db['exon-NR_024540.1-3']
 
 
 ```bash
-# https://github.com/biocommons/hgvs/issues/634
-# https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
-pip install biocommons.seqrepo
-sudo seqrepo -r seqrepo pull
-export HGVS_SEQREPO_DIR=${PWD}/seqrepo/2021-01-29
+# 4. Transcript coordinate mappings:
+# - cdot-0.2.1.refseq.grch37_grch38.json.gz
+# cdot replaces UTA lookups from hgvs library
+# https://github.com/SACGF/cdot
+
+# Get it from https://osf.io/7csav/
+# Alternative (check version):
+# wget https://cdot.cc/download/cdot-0.2.8.refseq.grch37_grch38.json.gz
 ```
 
 
-## Design choices
+```bash
+# 5. Transcript sequence data < optional
+# For local execution:
+# - https://github.com/biocommons/hgvs/issues/634
+# - https://hgvs.readthedocs.io/en/stable/installation.html#installing-seqrepo-optional
+# There is even a docker container
+# https://github.com/biocommons/biocommons.seqrepo/blob/main/docs/docker.rst
 
-For future reference, below are documented some peculiarities:
+pip install biocommons.seqrepo==0.6.5
+sudo seqrepo -r seqrepo pull
+# Then management is taken care of by primer4, ie this is not necessary:
+# export HGVS_SEQREPO_DIR=${PWD}/seqrepo/2021-01-29
+```
 
-- `gffutils.FeatureDB` will not accept symlinks; this means we cannot pass the database in a `nextflow` channel. 
-- There are two files with parameters, one for `nextflow` (`nextflow.config`) and one to guide the primer design (`config.json`). There are more elegant solutions, but meh.

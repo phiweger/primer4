@@ -1,27 +1,35 @@
+'''
+streamlit run primer4/stream.py -- -c config.json
+'''
+
+
+import argparse
 import json
 from pathlib import Path
 import pdb
+import os
 
 import click
 from cdot.hgvs.dataproviders import JSONDataProvider
 import gffutils
+import pandas as pd
 from pyfaidx import Fasta
 import streamlit as st
 
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
-from primer4.utils import mask_sequence, reconstruct_mrna
+from primer4.utils import mask_sequence, reconstruct_mrna, log
+from primer4.vis import Beauty, prepare_data_for_vis
+from primer4.warnings import warn
 
 
-def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params):
+def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params, max_variation):
     '''
-    fp_data = '/Users/phi/Dropbox/repos/primer4/data'
-    fp_config = '/Users/phi/Dropbox/repos/primer4/config.json'
-
-    gimme_some_primers('sanger', 'NM_000546.6:c.215C>G', fp_data, fp_config)
+    gimme_some_primers('sanger', 'NM_000546.6:c.215C>G', ...)
     gimme_some_primers('qpcr', ('NM_001145408.2', 6), ...)
     gimme_some_primers('mrna', ('NM_000546.6', 6, 7), ...)
     '''
+
     if method == 'sanger':
         v = Variant(code[0], hdp, db)
     elif method == 'qpcr':
@@ -32,7 +40,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
         raise ValueError('Method is not implemented, exit.')
 
     tmp = Template(v, db)
-    tmp.load_variation_(vardbs)
+    tmp.load_variation_(vardbs, max_variation)
     
     if method == 'sanger':
         masked = mask_sequence(tmp.get_sequence(genome), tmp.mask)
@@ -61,120 +69,176 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
     return results
 
 
-
-import argparse
-
-parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-i', '--order', required=False)
-parser.add_argument('-o', '--outdir', default='results')
-parser.add_argument('-d', '--fp-data')
-parser.add_argument('-p', '--fp-config')
-args = parser.parse_args()
-
-
-order = args.order
-outdir = args.outdir
-fp_data = args.fp_data
-fp_config = args.fp_config
-
-
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
 # https://discuss.streamlit.io/t/unhashabletype-cannot-hash-object-of-type-thread-local/1917
 @st.cache(allow_output_mutation=True)
-def housekeeping(fp_data, fp_config):
+def housekeeping(fp_config):
     print('Housekeeping ...')
-    fp_genome = f'{fp_data}/GRCh37_latest_genomic.fna'
-    fp_coords = f'{fp_data}/cdot-0.2.1.refseq.grch37_grch38.json.gz'
-    
-    fp_snvs_1 = f'{fp_data}/GRCh37_latest_dbSNP_all.vcf.gz'
-    fp_snvs_2 = f'{fp_data}/ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz'
-    fp_snvs_3 = f'{fp_data}/ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz'
 
-    genome = Fasta(fp_genome)
-    hdp = JSONDataProvider([fp_coords])
-    
-    
     with open(fp_config, 'r') as file:
         params = json.load(file)
-    
-    vardbs = {
-        'dbSNP': fp_snvs_1,
-        '1000Genomes': fp_snvs_2,
-        'ESP': fp_snvs_3
-        }
-    return fp_genome, genome, hdp, params, vardbs
+
+    fp_genome = params['data']['reference']
+    fp_coords = params['data']['coordinates']
+    vardbs = params['data']['variation']
+
+    # We load the annotation data later (see comment in main fn) but check
+    # existance here.
+    fp_annotation = params['data']['annotation']
+
+    x = [i for i in vardbs.values()]
+    for fp in [fp_coords, fp_annotation, fp_genome] + x:
+        p = Path(fp)
+        assert p.exists(), f'Path {fp} does not exist'
+
+    print(log('Loading reference genome sequence'))
+    genome = Fasta(fp_genome)
+    print(log('Loading transcript coordinate mappings'))
+    hdp = JSONDataProvider([fp_coords])
+
+    # https://github.com/biocommons/biocommons.seqrepo
+    x = params['data']['sequences']
+    if Path(x).exists():
+        print(log('Will use local transcript sequence data'))
+        os.environ['HGVS_SEQREPO_DIR'] = x
+    else:
+        # If env var is not set, hgvs library will default to API usage, ie
+        # internet connection is needed.
+        print(log('Will use API to obtain sequence data'))
+
+    return genome, hdp, params, vardbs
 
 
-def main(order, outdir, fp_data, fp_config):
-    fp_genome, genome, hdp, params, vardbs = housekeeping(fp_data, fp_config)
+# ------------------------------------------------------------------------------
+# Run
+# ------------------------------------------------------------------------------
 
-    fp_annotation = f'{fp_data}/hg19-p13_annotation_bak.db'
-    db = gffutils.FeatureDB(fp_annotation, keep_order=True)
+
+parser = argparse.ArgumentParser(description='Process some integers.')
+parser.add_argument('-c', '--fp-config')
+args = parser.parse_args()
+
+
+def main(fp_config):
+    genome, hdp, params, vardbs = housekeeping(fp_config)
+
+    # Why is load annotation data here, not in housekeeping fn?
     # Cannot be opened by housekeeping bc/ second iteration will cause:
     # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
+    db = gffutils.FeatureDB(params['data']['annotation'], keep_order=True)
 
-    pout = Path(outdir)
-    pout.mkdir(exist_ok=True)
+    st.markdown(
+        r'''
+        ## Primer4
+
+        Example queries:
+
+        ```bash
+        # Sanger; HGVS syntax
+        NM_000546.6:c.215C>G
+        # mRNA; eg "::3" means we target exon 3
+        NM_000546.6::3
+        # qPCR; anchor primers in two exons
+        NM_000546.6::5::6 
+        ```
+        '''
+        )
 
     # The menu
     # https://docs.streamlit.io/library/api-reference/widgets
-
-    
     # Form
     # https://docs.streamlit.io/library/api-reference/control-flow/st.form
-
-    with st.form("my_form"):
-        method = st.selectbox(
-            'What method?',
-            ('Sanger', 'qPCR', 'mRNA'))
-        order = st.text_input('Primer order', '')
-        mask_variants = st.checkbox('Mask variants', value=True)
+    with st.form('my_form'):
+        
+        order = st.text_input('Query', '')
+        # Based on the selected method (PCR, ...) we'd like to update the
+        # default values for the fields below. In theory, this is possible:
+        # https://discuss.streamlit.io/t/circular-connection-of-slider-and-text-input/11015/4
+        # BUT. Not inside a form:
+        # streamlit.errors.StreamlitAPIException: With forms, callbacks can 
+        # only be defined on the `st.form_submit_button`. Defining callbacks on 
+        # other widgets inside a form is not allowed.
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            method = st.selectbox('Method', ('Sanger', 'qPCR', 'mRNA'))
+            method = method.lower()
+        with col2:
+            amplicon_len_min = st.number_input('min length [bp]', value=250)
+        with col3:
+            amplicon_len_max = st.number_input('max length [bp]', value=600)
+        with col4:
+            max_variation = st.number_input('Allele frequency [%]', min_value=0., max_value=100., value=0., step=0.01) / 100
     
         # Every form must have a submit button.
-        submitted = st.form_submit_button('Gimme some primers!')
+        submitted = st.form_submit_button(
+            'Run',
+            on_click=warn(method, params, amplicon_len_min, amplicon_len_max))
         
         if submitted:
             if not order:
+                st.write('Please provide a query')
                 return None
             else:
                 code = order.split('::')
-                method = method.lower()
-                st.write(method, code)
+                # This would otherwise fail later on HGVS parsing error
+                if len(code) > 1 and method == 'sanger':
+                    raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
     
-                primers = gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params)
+                primers = gimme_some_primers(method, code, params['data']['reference'], genome, hdp, db, vardbs, params, max_variation)
                 st.write('Done.')
         else:
             return None
-
-    # method, gene, code = order.strip().split('::')
+    # What's in "primers"?
+    # import pdb
+    # pdb.set_trace()
+    # dir(primers)
+    # [... 'data', 'fwd', 'insert', 'name', 'penalty', 'rev', 'save', 'to_c', 
+    # 'to_g']
 
     l = []
     for pair in primers:
-        # st.write(pair, pair.data['fwd'], pair.data['rev'])
-        # if code[0] == 'NM_006087.4:c.745G>A' and pair.penalty < 1:
-            # pdb.set_trace()
-
-        with open(pout / f'{pair.name}.json', 'w+') as out: 
-            json.dump(pair.data, out, indent=4, sort_keys=True)
+        # with open(pout / f'{pair.name}.json', 'w+') as out: 
+        #     json.dump(pair.data, out, indent=4, sort_keys=True)
         # print(pair.name)
         # print(pair.data)
 
         l.append(f"{order},{pair.name},{pair.penalty},{pair.data['fwd']['sequence']},{pair.data['fwd']['Tm']},{pair.data['rev']['sequence']},{pair.data['rev']['Tm']}\n")
 
-    # with open(f'{outdir}.csv', 'w+') as out:
-    #     for i in l:
-    #         out.write(i)
+    # Any primers found?
+    if not l:
+        st.write('No primers found under the provided constrains. Relax! (the constraints)')
     
+    else:
+        # Display dataframe
+        df = pd.DataFrame([i.split(',') for i in l])
+        df.columns = 'order name penalty fwd fwd_tm rev rev_tm'.split(' ')    
+        # https://docs.streamlit.io/library/api-reference/data/st.dataframe
+        # st.table(df)
+        st.dataframe(df)
 
-    # TODO: st.table
-    # https://docs.streamlit.io/library/api-reference/data
+        # Plot something
+        data = prepare_data_for_vis()
+        _ = Beauty(data).plot()
 
-    
-    # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-file-streamlit
-    st.download_button('Anneal me', ''.join(l), 'primers.csv')
+        # Download
+        # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-pandas-dataframe-csv
+        # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-file-streamlit
+        @st.cache
+        def convert_df(df):
+            return df.to_csv().encode('utf-8')
+
+        csv = convert_df(df)
+        st.download_button(
+            "Download",
+            csv,
+            "file.csv",
+            "text/csv",
+            key='download-csv'
+            )
 
     return None
 
 
 if __name__ == '__main__':
-    main(order, outdir, fp_data, fp_config)
+    main(args.fp_config)
+

@@ -3,6 +3,7 @@ _deprecated
 TODO.md
 
 data
+config_local.json
 
 workflow/results
 workflow/work

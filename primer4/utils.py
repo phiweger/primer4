@@ -1,3 +1,4 @@
+from collections import defaultdict
 import datetime
 from difflib import get_close_matches
 from itertools import chain, zip_longest
@@ -15,7 +16,7 @@ from pysam import VariantFile
 
 
 # https://stackoverflow.com/questions/1270951/how-to-refer-to-relative-paths-of-resources-when-working-with-a-code-repository
-fn = Path(__file__).parents[1] / 'data/chrom_names.csv'
+fn = Path(__file__).parents[1] / 'chrom_names.csv'
 chrom_names = {}
 with open(fn, 'r') as file:
     for line in file:
@@ -347,8 +348,15 @@ def design_primers(method, params, masked, constraints):
 
 
 def log(message):
-    now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-    return f'[{now}]\t{message}'
+    '''
+    https://stackoverflow.com/questions/13890935/does-pythons-time-time-return-the-local-or-utc-timestamp
+
+    2022-09-09 11:06:02.593 Fetching ...
+    '''
+    # now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    now = datetime.datetime.now().__str__()[:-3]
+    # return f'[{now}]\t{message}'
+    return f'{now} {message}'
 
 
 def parse_design(design, n, pname, g_pos, chromosome, masked):
@@ -504,11 +512,45 @@ def twolists(l1, l2):
     return [x for x in chain(*zip_longest(l1, l2)) if x is not None]
 
 
-def load_variation(feat, databases):
+def parse_snpdb(line):
+    '''
+    On the snpDB format (here from the .vcf file header):
+
+    ##INFO=<ID=FREQ,Number=.,Type=String,Description="An ordered list of allele frequencies as reported by various genomic studies, starting with the reference allele followed by alternate alleles as ordered in the ALT column. When not already in the dbSNP allele set, alleles from the studies are added to the ALT column.  The minor allele, which was previuosly reported in VCF as the GMAF, is the second largest value in the list.  This is the GMAF reported on the RefSNP and EntrezSNP pages and VariationReporter">
+
+    eg:
+
+    NC_000002.11    153435067   rs10497107  G   A   .   .   RS=10497107;dbSNPBuildID=119;SSR=0;GENEINFO=FMNL2:114793;VC=SNV;INT;GNO;FREQ=1000Genomes:0.8568,0.1432|ALSPAC:0.8591,0.1409|Estonian:0.9067,0.0933|GENOME_DK:0.875,0.125|GnomAD:0.8318,0.1682|GoNL:0.8597,0.1403|HapMap:0.8091,0.1909|KOREAN:0.9559,0.04415|Korea1K:0.9531,0.04694|NorthernSweden:0.8567,0.1433|Qatari:0.787,0.213|SGDP_PRJ:0.4362,0.5638|Siberian:0.5,0.5|TOMMO:0.9385,0.06146|TOPMED:0.8277,0.1723|TWINSUK:0.863,0.137|dbGaP_PopFreq:0.8381,0.1619;COMMON
+    '''
+    l = []
+    for i in line.split('|'):
+        population, freqs = i.split(':')
+        # First number is the allel frequency of the reference genome
+        for x in freqs.split(',')[1:]:
+            # TOMMO:0.9998,.,0.0002417
+            if x != '.':
+                freq = float(x)
+                l.append(freq)
+        # Return the highest alternative allel frequency in any population 
+        return max(l)
+
+
+def load_variation(feat, databases, max_variation):
     '''
     feat .. gffutils feature type
+    
+    "freqs" is a dict which contains the SNVs per position.
+    ...
+    2050: [('dbSNP', 3.778e-06)],
+    2054: [('dbSNP', 0.0001997),
+     ('1000Genomes', 0.000199681002413854)],
+    2055: [('dbSNP', 8.555e-05)],
+    2060: [('dbSNP', 7.556e-06)],
+    ...
     '''
     mask = set()
+    freqs = defaultdict(list)
+
     for name, db in databases.items():
         variants = VariantFile(db)
 
@@ -521,22 +563,38 @@ def load_variation(feat, databases):
         for i in vv:
             # .info.get(...) raises ValueError: Invalid header if not there
             info = dict(i.info)
-            
+            # pos = i.pos - feat.start - 1  # TODO: -1 here?
+            pos = i.pos - feat.start
+
+            # TODO: missing "max_variation"
             if name == 'dbSNP':
-                if info.get('COMMON'):
-                    mask.add(i.pos - feat.start - 1)
-            
+                if info.get('FREQ'):
+                    x = parse_snpdb(','.join(info.get('FREQ')))
+                    freqs[pos].append((name, x))
+                    # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', 7.96 ...
+                    if x >= max_variation:
+                        mask.add(pos)
+
+                #if info.get('COMMON'):
+                #    # print(name, x)
+                #    mask.add(pos)
+
             elif name == '1000Genomes':
-                if info['AF'][0] >= 0.01:
-                    mask.add(i.pos - feat.start - 1)
+                x = float(info['AF'][0])
+                freqs[pos].append((name, x))
+                if x >= max_variation:
+                    mask.add(pos)
             
             elif name == 'ESP':
-                if float(info['MAF'][0]) >= 1:
-                    mask.add(i.pos - feat.start - 1)
+                x = float(info['MAF'][0]) / 100  # in database from 1 .. 100
+                freqs[pos].append((name, x))
+                if x >= max_variation:
+                    mask.add(pos)
 
             else:
                 print(f'"{name}" is not a valid variant database')
-    return mask
+
+    return mask, freqs
 
 
 def mask_sequence(seq, var, mask='N', unmasked=''):
@@ -590,4 +648,3 @@ def reconstruct_mrna(tx, feature_db, genome, vardbs):
         coords.extend(pos)
     
     return reconstruction, exons, coords, segmentation
-

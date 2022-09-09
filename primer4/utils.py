@@ -348,6 +348,9 @@ def design_primers(method, params, masked, constraints):
 
 
 def log(message):
+    '''
+    https://stackoverflow.com/questions/13890935/does-pythons-time-time-return-the-local-or-utc-timestamp
+    '''
     now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     return f'[{now}]\t{message}'
 
@@ -641,4 +644,3 @@ def reconstruct_mrna(tx, feature_db, genome, vardbs):
         coords.extend(pos)
     
     return reconstruction, exons, coords, segmentation
-

@@ -1,6 +1,12 @@
+'''
+streamlit run primer4/stream.py -- -c config.json
+'''
+
+
 import json
 from pathlib import Path
 import pdb
+import os
 
 import click
 from cdot.hgvs.dataproviders import JSONDataProvider
@@ -11,9 +17,10 @@ import streamlit as st
 
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
-from primer4.utils import mask_sequence, reconstruct_mrna
+from primer4.utils import mask_sequence, reconstruct_mrna, log
 from primer4.vis import Beauty, prepare_data_for_vis
 from primer4.warnings import warn
+
 
 def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params, max_variation):
     '''
@@ -68,66 +75,72 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
 import argparse
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-i', '--order', required=False)
-parser.add_argument('-o', '--outdir', default='results')
-parser.add_argument('-d', '--fp-data')
-parser.add_argument('-p', '--fp-config')
+parser.add_argument('-c', '--fp-config')
 args = parser.parse_args()
-
-
-order = args.order
-outdir = args.outdir
-fp_data = args.fp_data
-fp_config = args.fp_config
 
 
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
 # https://discuss.streamlit.io/t/unhashabletype-cannot-hash-object-of-type-thread-local/1917
 @st.cache(allow_output_mutation=True)
-def housekeeping(fp_data, fp_config):
+def housekeeping(fp_config):
     print('Housekeeping ...')
-    p = Path(fp_data)
-    assert p.exists(), 'Data path does not exist, exit.'
-    
-    fp_genome = str(p / 'GRCh37_latest_genomic.fna')
-    fp_coords = str(p / 'cdot-0.2.1.refseq.grch37_grch38.json.gz')
-    fp_annotation = str(p / 'hg19-p13_annotation_bak.db')
-    # fp_annotation = f'{fp_data}/hg19-p13_annotation.db'
-    
-    fp_snvs_1 = str(p / 'GRCh37_latest_dbSNP_all.vcf.gz')
-    fp_snvs_2 = str(p / 'ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz')
-    fp_snvs_3 = str(p / 'ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz')
 
-    genome = Fasta(fp_genome)
-    hdp = JSONDataProvider([fp_coords])
-    
-    # TODO:
-    # os.environ['HGVS_SEQREPO_DIR'] = '.../seqrepo/2021-01-29/'
-    
     with open(fp_config, 'r') as file:
         params = json.load(file)
+
+    #fp_genome = str(p / 'GRCh37_latest_genomic.fna')
+    #fp_coords = str(p / 'cdot-0.2.1.refseq.grch37_grch38.json.gz')
     
-    vardbs = {
-        'dbSNP': fp_snvs_1,
-        '1000Genomes': fp_snvs_2,
-        'ESP': fp_snvs_3
-        }
-    return fp_genome, genome, hdp, params, vardbs
+    
+    #fp_annotation = params['data']['annotation']
+    # fp_annotation = str(p / 'hg19-p13_annotation_bak.db')
+    # fp_annotation = f'{fp_data}/hg19-p13_annotation.db'
+    
+    #fp_snvs_1 = str(p / 'GRCh37_latest_dbSNP_all.vcf.gz')
+    #fp_snvs_2 = str(p / 'ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz')
+    #fp_snvs_3 = str(p / 'ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz')
+
+    fp_genome = params['data']['reference']
+    fp_coords = params['data']['coordinates']
+    vardbs = params['data']['variation']
+
+    # We load the annotation data later (see comment in main fn) but check
+    # existance here.
+    fp_annotation = params['data']['annotation']
+
+    x = [i for i in vardbs.values()]
+    for fp in [fp_coords, fp_annotation, fp_genome] + x:
+        p = Path(fp)
+        assert p.exists(), f'Path {fp} does not exist'
+
+    print(log('Loading reference genome sequence'))
+    genome = Fasta(fp_genome)
+    print(log('Loading transcript coordinate mappings'))
+    hdp = JSONDataProvider([fp_coords])
+
+    # https://github.com/biocommons/biocommons.seqrepo
+    x = params['data']['sequences']
+    if Path(x).exists():
+        print(log('Will use local transcript sequence data'))
+        os.environ['HGVS_SEQREPO_DIR'] = x
+    else:
+        # If env var is not set, hgvs library will default to API usage, ie
+        # internet connection is needed.
+        print(log('Will use API to obtain sequence data'))
+
+    return genome, hdp, params, vardbs
 
 
-def main(order, outdir, fp_data, fp_config):
-    fp_genome, genome, hdp, params, vardbs = housekeeping(fp_data, fp_config)
+def main(fp_config):
+    genome, hdp, params, vardbs = housekeeping(fp_config)
 
-    # Why is "fp_annotation" here?
+    # Why is load annotation data here, not in housekeeping fn?
     # Cannot be opened by housekeeping bc/ second iteration will cause:
     # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
-    p = Path(fp_data)
-    assert p.exists(), 'Data path does not exist, exit.'
-    fp_annotation = str(p / 'hg19-p13_annotation_bak.db')
-    db = gffutils.FeatureDB(fp_annotation, keep_order=True)
+    db = gffutils.FeatureDB(params['data']['annotation'], keep_order=True)
 
-    pout = Path(outdir)
-    pout.mkdir(exist_ok=True)
+    #pout = Path(outdir)
+    #pout.mkdir(exist_ok=True)
 
     st.markdown(
         r'''
@@ -190,7 +203,7 @@ def main(order, outdir, fp_data, fp_config):
                 if len(code) > 1 and method == 'sanger':
                     raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
     
-                primers = gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params, max_variation)
+                primers = gimme_some_primers(method, code, params['data']['reference'], genome, hdp, db, vardbs, params, max_variation)
                 st.write('Done.')
         else:
             return None
@@ -251,7 +264,7 @@ def main(order, outdir, fp_data, fp_config):
 
 
 if __name__ == '__main__':
-    main(order, outdir, fp_data, fp_config)
+    main(args.fp_config)
 
 
 

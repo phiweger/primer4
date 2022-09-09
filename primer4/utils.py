@@ -16,7 +16,7 @@ from pysam import VariantFile
 
 
 # https://stackoverflow.com/questions/1270951/how-to-refer-to-relative-paths-of-resources-when-working-with-a-code-repository
-fn = Path(__file__).parents[1] / 'data/chrom_names.csv'
+fn = Path(__file__).parents[1] / 'chrom_names.csv'
 chrom_names = {}
 with open(fn, 'r') as file:
     for line in file:

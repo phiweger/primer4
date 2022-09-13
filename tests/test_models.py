@@ -7,9 +7,29 @@ from gffutils import FeatureDB
 from primer4.models import Variant, ExonDelta
 
 
-with open('config.json', 'r') as file:
-    params = json.load(file)
+# with open('config.json', 'r') as file:
+#     params = json.load(file)
 
+
+
+import pytest
+
+@pytest.fixture(scope="session")
+def name(pytestconfig):
+    return pytestconfig.getoption("config")
+
+
+def test_print_name(name):
+    print(f"\ncommand line param (name): {name}")
+
+
+def test_print_foo(name):
+    with open(name, 'r') as file:
+        params = json.load(file)
+        assert params['n_return'] == 10
+
+
+'''
 hdp = JSONDataProvider([f'data/{params["coordinates"]}'])
 db = FeatureDB(f'data/{params["annotation"]}', keep_order=True)
 
@@ -51,5 +71,5 @@ def test_delta(code, feature_db, is_delta, is_unique):
     ed = ExonDelta(code, feature_db)
     assert ed.is_delta == is_delta
     assert ed.is_unique == is_unique
-        
+'''        
 

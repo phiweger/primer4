@@ -1,5 +1,6 @@
 '''
-streamlit run primer4/stream.py -- -c config.json
+streamlit run primer4/stream.py -- --config config.json
+pytest --config config.json
 '''
 
 
@@ -96,16 +97,6 @@ def housekeeping(fp_config):
     print(log('Loading transcript coordinate mappings'))
     hdp = JSONDataProvider([fp_coords])
 
-    # https://github.com/biocommons/biocommons.seqrepo
-    x = params['data']['sequences']
-    if Path(x).exists():
-        print(log('Will use local transcript sequence data'))
-        os.environ['HGVS_SEQREPO_DIR'] = x
-    else:
-        # If env var is not set, hgvs library will default to API usage, ie
-        # internet connection is needed.
-        print(log('Will use API to obtain sequence data'))
-
     return genome, hdp, params, vardbs
 
 
@@ -115,7 +106,7 @@ def housekeeping(fp_config):
 
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-c', '--fp-config')
+parser.add_argument('--config', required=True, type=str)
 args = parser.parse_args()
 
 
@@ -126,6 +117,23 @@ def main(fp_config):
     # Cannot be opened by housekeeping bc/ second iteration will cause:
     # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
     db = gffutils.FeatureDB(params['data']['annotation'], keep_order=True)
+
+    # TODO:
+    # https://github.com/phiweger/primer4/issues/2
+    # Why does it trigger reload in housekeeping fn but not here?
+    # Something w/ session state?
+    # https://stackoverflow.com/questions/64698788/streamlit-how-to-store-value-of-variable-in-cache
+    # https://github.com/biocommons/biocommons.seqrepo
+    x = params['data']['sequences']
+    if Path(x).exists():
+        print(log('Will use local transcript sequence data'))
+        # TODO: It's this line:
+        os.environ['HGVS_SEQREPO_DIR'] = x
+    else:
+        # If env var is not set, hgvs library will default to API usage, ie
+        # internet connection is needed.
+        print(log('Will use API to obtain sequence data'))
+
 
     st.markdown(
         r'''
@@ -240,5 +248,5 @@ def main(fp_config):
 
 
 if __name__ == '__main__':
-    main(args.fp_config)
+    main(args.config)
 

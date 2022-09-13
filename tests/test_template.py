@@ -1,3 +1,4 @@
+'''
 import json
 from pathlib import Path
 
@@ -142,28 +143,29 @@ vis['exon_boundaries'] = boundaries
 with open('4vis.json', 'w+') as out:
     json.dump(vis, out, indent=4)
 
+
+# TODO:
+# 
+# there's an off by one error
+# 
+#     "variation": {
+#         "-1": [
+#             [
+#                 "dbSNP",
+#                 1.511e-05
+#             ]
+#         ],
+#         "1": [
+#             [
+#                 "dbSNP",
+#                 0.0
+#             ]
+#         ],
+# 
+# utils.py line 559
+
+
+
+
+
 '''
-TODO:
-
-there's an off by one error
-
-    "variation": {
-        "-1": [
-            [
-                "dbSNP",
-                1.511e-05
-            ]
-        ],
-        "1": [
-            [
-                "dbSNP",
-                0.0
-            ]
-        ],
-
-utils.py line 559
-'''
-
-
-
-

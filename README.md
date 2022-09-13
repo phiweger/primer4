@@ -45,6 +45,13 @@ pip install streamlit==1.8.1
 ```
 
 
+## Test
+
+```bash
+pytest --config config.json
+```
+
+
 ## Run
 
 ```bash

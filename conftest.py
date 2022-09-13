@@ -1,2 +1,2 @@
 def pytest_addoption(parser):
-    parser.addoption('--config', action='store', required=True)
+    parser.addoption('--config', action='store', default='config.json')

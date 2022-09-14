@@ -13,7 +13,7 @@ from primer4.space import pythonic_boundaries
 from primer4.utils import (
     convert_chrom,
     gc_map,
-    load_variation,
+    load_variation_freqs,
     log,
     manual_c_to_g,
     sync_tx_with_feature_db)
@@ -220,6 +220,7 @@ class Template():
             )
         self.start, self.end = pythonic_boundaries(self.feat)
         self.mask = set()
+        self.mask_freqs = {}
         self.methods = {
             'sanger': sanger,
             'qpcr':   qpcr,
@@ -249,9 +250,14 @@ class Template():
         return s
 
     def relative_pos(self, n):
+        # n .. genomic position
         # Primer3 needs positions relative to sequence (when masking etc.)
         # Turns genomic coordinate into relative one
         return n - self.start
+
+    def invert_relative_pos(self, n):
+        # n .. relative position
+        return self.start + n
     
     def apply(self, fn, feature_db, params, *args, **kwargs):
         # Check that we apply the right fn to the right data type
@@ -260,9 +266,18 @@ class Template():
         # Apply fn
         return self.methods[fn](self, feature_db, params, *args, **kwargs)
 
-    def load_variation_(self, databases, max_variation=0.01):
-        self.mask, self.mask_freqs = load_variation(
-            self.feat, databases, max_variation)
+    def load_variation_freqs_(self, databases):
+        self.mask_freqs = load_variation_freqs(self.feat, databases)
+        return None
+
+    def load_variation_(self, max_variation=0.01):
+        assert self.mask_freqs, 'Please load SNV frequencies first'
+        mask = set()
+        for rel_pos, snvs in self.mask_freqs.items():
+            for db, freq in snvs:
+                if freq > max_variation:
+                    mask.add(rel_pos)
+        self.mask = mask
         return None
 
     def get_exons(self, feature_db):
@@ -276,7 +291,6 @@ class Template():
         https://daler.github.io/gffutils/autodocs/gffutils.interface.FeatureDB.region.html
         '''
         tx = self.data.tx
-
         features = {}
         for i in self.region:
             # tmp.region[-1].id

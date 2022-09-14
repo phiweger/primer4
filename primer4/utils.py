@@ -535,7 +535,7 @@ def parse_snpdb(line):
         return max(l)
 
 
-def load_variation(feat, databases, max_variation):
+def load_variation_freqs(feat, databases):
     '''
     feat .. gffutils feature type
     
@@ -548,7 +548,6 @@ def load_variation(feat, databases, max_variation):
     2060: [('dbSNP', 7.556e-06)],
     ...
     '''
-    mask = set()
     freqs = defaultdict(list)
 
     for name, db in databases.items():
@@ -570,10 +569,10 @@ def load_variation(feat, databases, max_variation):
             if name == 'dbSNP':
                 if info.get('FREQ'):
                     x = parse_snpdb(','.join(info.get('FREQ')))
-                    freqs[pos].append((name, x))
+                    # For some reason some SNVs in the databases have 0 freq.
+                    if x != 0:
+                        freqs[pos].append((name, x))
                     # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', 7.96 ...
-                    if x >= max_variation:
-                        mask.add(pos)
 
                 #if info.get('COMMON'):
                 #    # print(name, x)
@@ -581,20 +580,18 @@ def load_variation(feat, databases, max_variation):
 
             elif name == '1000Genomes':
                 x = float(info['AF'][0])
-                freqs[pos].append((name, x))
-                if x >= max_variation:
-                    mask.add(pos)
+                if x != 0:
+                    freqs[pos].append((name, x))
             
             elif name == 'ESP':
                 x = float(info['MAF'][0]) / 100  # in database from 1 .. 100
-                freqs[pos].append((name, x))
-                if x >= max_variation:
-                    mask.add(pos)
+                if x != 0:
+                    freqs[pos].append((name, x))
 
             else:
                 print(f'"{name}" is not a valid variant database')
 
-    return mask, freqs
+    return freqs
 
 
 def mask_sequence(seq, var, mask='N', unmasked=''):

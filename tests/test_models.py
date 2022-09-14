@@ -74,6 +74,7 @@ def test_variant2(code, coding_start, chrom, genomic_start, hdp, db):
     tmp = Template(v, db)
     assert tmp.relative_pos(tmp.start) == 0
     assert tmp.relative_pos(tmp.end) == len(tmp)
+    assert tmp.invert_relative_pos(tmp.relative_pos(tmp.start)) == tmp.start
 
 
 # NM_000546.6:c.(4071+1_4072-1)_(5154+1_5155-1)del

@@ -40,8 +40,10 @@ class Beauty():
         return None
 
 
-def prepare_data_for_vis(v, tmp, primers, outfile):
+def prepare_data_for_vis(v, tmp, primers, prefix):
     
+    # --- Exons ---
+    # bed format
     # By default, tmp.region contains all exons.
     features = {}
     for number, i in tmp.exons.items():
@@ -51,7 +53,7 @@ def prepare_data_for_vis(v, tmp, primers, outfile):
             f'{i.chrom}\t{start}\t{end}\t{number}\t.\t{i.strand}\n'
         bed = ''.join([v for k, v in sorted(features.items())])
 
-    with open(outfile, 'w+') as out:
+    with open(f'{prefix}.bed', 'w+') as out:
         out.write(bed) 
     '''
     NC_000017.10    7571739 7573008 11  .   -
@@ -66,6 +68,20 @@ def prepare_data_for_vis(v, tmp, primers, outfile):
     NC_000017.10    7579839 7579940 2   .   -
     NC_000017.10    7590695 7590808 1   .   -
     '''
+    
+    # --- SNVs ---
+    # bigwig format, 0-based:
+    # https://www.biostars.org/p/354635/
+    # https://www.biostars.org/p/84686/
+    result = ''
+    for rel_pos, snvs in tmp.mask_freqs.items():
+        gen_pos = tmp.invert_relative_pos(rel_pos)
+        for db, freq in snvs:
+            freq = np.log(freq)
+            result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{freq}\n'
+    
+    with open(f'{prefix}.bw', 'w+') as out:
+        out.write(result)
+
     return None
 
-    

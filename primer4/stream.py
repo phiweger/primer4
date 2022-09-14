@@ -41,7 +41,8 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         raise ValueError('Method is not implemented, exit.')
 
     tmp = Template(v, db)
-    tmp.load_variation_(vardbs, max_variation)
+    tmp.load_variation_freqs_(vardbs)
+    tmp.load_variation_(max_variation)
     
     if method == 'sanger':
         masked = mask_sequence(tmp.get_sequence(genome), tmp.mask)
@@ -207,8 +208,8 @@ def main(fp_config):
         else:
             return None
     # What's in "primers"?
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
     # if primers: dir(primers[0])
     # dir(tmp)
     # [... 'data', 'fwd', 'insert', 'name', 'penalty', 'rev', 'save', 'to_c', 

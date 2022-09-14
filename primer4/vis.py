@@ -5,7 +5,7 @@ import numpy as np
 import streamlit as st
 
 
-def prepare_data_for_vis():
+def prepare_mock_data_for_vis():
     # Data for plotting
     # https://docs.streamlit.io/library/api-reference/charts/st.pyplot
     return np.random.normal(1, 1, size=300)
@@ -38,3 +38,34 @@ class Beauty():
             st.write('')    
 
         return None
+
+
+def prepare_data_for_vis(v, tmp, primers, outfile):
+    
+    # By default, tmp.region contains all exons.
+    features = {}
+    for number, i in tmp.exons.items():
+        # Exons are already sorted by genomic position from smallest to largest
+        start, end = sorted([i.start, i.end])
+        features[start] = \
+            f'{i.chrom}\t{start}\t{end}\t{number}\t.\t{i.strand}\n'
+        bed = ''.join([v for k, v in sorted(features.items())])
+
+    with open(outfile, 'w+') as out:
+        out.write(bed) 
+    '''
+    NC_000017.10    7571739 7573008 11  .   -
+    NC_000017.10    7573927 7574033 10  .   -
+    NC_000017.10    7576853 7576926 9   .   -
+    NC_000017.10    7577019 7577155 8   .   -
+    NC_000017.10    7577499 7577608 7   .   -
+    NC_000017.10    7578177 7578289 6   .   -
+    NC_000017.10    7578371 7578554 5   .   -
+    NC_000017.10    7579312 7579590 4   .   -
+    NC_000017.10    7579700 7579721 3   .   -
+    NC_000017.10    7579839 7579940 2   .   -
+    NC_000017.10    7590695 7590808 1   .   -
+    '''
+    return None
+
+    

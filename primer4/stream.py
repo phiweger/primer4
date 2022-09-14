@@ -20,7 +20,7 @@ import streamlit as st
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
 from primer4.utils import mask_sequence, reconstruct_mrna, log
-from primer4.vis import Beauty, prepare_data_for_vis
+from primer4.vis import Beauty, prepare_mock_data_for_vis
 from primer4.warnings import warn
 
 
@@ -67,7 +67,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         raise ValueError('Method is not implemented, exit.')
     
     results = check_for_multiple_amplicons(primers, fp_genome)
-    return results
+    return results, tmp
 
 
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
@@ -192,16 +192,30 @@ def main(fp_config):
                 if len(code) > 1 and method == 'sanger':
                     raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
     
-                primers = gimme_some_primers(method, code, params['data']['reference'], genome, hdp, db, vardbs, params, max_variation)
+                primers, tmp = gimme_some_primers(
+                    method,
+                    code,
+                    params['data']['reference'],
+                    genome,
+                    hdp,
+                    db,
+                    vardbs,
+                    params,
+                    max_variation)
+                
                 st.write('Done.')
         else:
             return None
     # What's in "primers"?
-    # import pdb
-    # pdb.set_trace()
-    # dir(primers)
+    import pdb
+    pdb.set_trace()
+    # if primers: dir(primers[0])
+    # dir(tmp)
     # [... 'data', 'fwd', 'insert', 'name', 'penalty', 'rev', 'save', 'to_c', 
     # 'to_g']
+    # primers[0].to_g(tmp)
+    # [7579197, 7579217, 7579679, 7579699]
+    # TODO: coding coords
 
     l = []
     for pair in primers:
@@ -225,7 +239,7 @@ def main(fp_config):
         st.dataframe(df)
 
         # Plot something
-        data = prepare_data_for_vis()
+        data = prepare_mock_data_for_vis()
         _ = Beauty(data).plot()
 
         # Download

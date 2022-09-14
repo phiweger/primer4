@@ -212,9 +212,12 @@ class Template():
         self.data = mutation
         self.type = type(mutation)  # Template(v, db).type == Variant
         self.feat = feature_db[f'rna-{mutation.tx}']
-        self.region = list(feature_db.region(
-            region=(self.feat.chrom, self.feat.start, self.feat.end),
-            featuretype=featuretype))
+        self.region = list(
+            feature_db.region(
+                region=(self.feat.chrom, self.feat.start, self.feat.end),
+                featuretype=featuretype
+                )
+            )
         self.start, self.end = pythonic_boundaries(self.feat)
         self.mask = set()
         self.methods = {
@@ -231,6 +234,7 @@ class Template():
         self.c_to_g, self.g_to_c = gc_map(mutation.tx, feature_db)
         # TODO: Maybe duplicate code here to self.feat
         self.mrna = ()
+        self.exons = self.get_exons(feature_db)
 
     def __repr__(self):
         return self.feat.__repr__()
@@ -260,6 +264,31 @@ class Template():
         self.mask, self.mask_freqs = load_variation(
             self.feat, databases, max_variation)
         return None
+
+    def get_exons(self, feature_db):
+        '''
+        Get all exons for the template's transcript and sort them by their start
+        position, ie exons with a smaller genomic coordinate apprear first.
+
+        Returns a dict, where keys are the exon number in the mRNA and values
+        are the "genomic feature" objects (here exons) from gffutils.
+
+        https://daler.github.io/gffutils/autodocs/gffutils.interface.FeatureDB.region.html
+        '''
+        tx = self.data.tx
+
+        features = {}
+        for i in self.region:
+            # tmp.region[-1].id
+            # 'exon-NM_001143991.2-1'
+            featuretype, name, number = i.id.split('-')
+            if featuretype == 'exon' and name == tx:
+                start, end = sorted([i.start, i.end])
+                features[start] = (number, i)
+            
+        exons = {int(number): i for k, (number, i) in sorted(features.items())}
+        return exons
+
 
     # def mask_sequence(self, genome, mask='N', unmasked=''):
     #     s = self.get_sequence(genome)

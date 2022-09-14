@@ -4,7 +4,7 @@ import pytest
 from cdot.hgvs.dataproviders import JSONDataProvider
 from gffutils import FeatureDB
 
-from primer4.models import Variant, ExonDelta
+from primer4.models import Variant, ExonDelta, Template
 
 
 @pytest.fixture(scope='session')
@@ -70,6 +70,10 @@ def test_variant2(code, coding_start, chrom, genomic_start, hdp, db):
     assert v.start == coding_start
     assert v.chrom == chrom
     assert v.g.posedit.pos.start.base == genomic_start
+
+    tmp = Template(v, db)
+    assert tmp.relative_pos(tmp.start) == 0
+    assert tmp.relative_pos(tmp.end) == len(tmp)
 
 
 # NM_000546.6:c.(4071+1_4072-1)_(5154+1_5155-1)del

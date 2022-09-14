@@ -42,6 +42,12 @@ pip install cdot==0.2.2
 pip install streamlit==1.8.1
 
 # hgvs alternative https://github.com/counsyl/hgvs
+
+# Maybe for vis:
+# https://github.com/deeptools/pyGenomeTracks
+conda create -n pygenometracks -c bioconda -c conda-forge mamba python=3.7
+conda activate pygenometracks
+mamba install -c bioconda -c conda-forge pygenometracks=3.5
 ```
 
 

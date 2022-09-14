@@ -1,4 +1,8 @@
+from collections import Counter
+import itertools
 from io import BytesIO
+from pathlib import Path
+from uuid import uuid4
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -40,8 +44,66 @@ class Beauty():
         return None
 
 
-def prepare_data_for_vis(v, tmp, primers, prefix):
+def windows(iterable, length=2, overlap=0, truncate=False):
+    '''
+    Returns a generator of windows of <length> and with an <overlap>.
+
+    Shamelessly stolen from: Python cookbook 2nd edition, chapter 19
+    '''
+
+    it = iter(iterable)
+    results = list(itertools.islice(it, length))
     
+    while len(results) == length:
+        yield results
+        results = results[length-overlap:]
+        results.extend(itertools.islice(it, length-overlap))
+    
+    if truncate:
+        if results and len(results) == length:
+            yield results
+    else:
+        if results:
+            yield results
+
+
+def calculate_gc_content(seq, length=50, overlap=49, truncate=False):
+    result = []
+    for w in windows(seq.upper(), length, overlap, truncate):
+        cnt = Counter(w)
+        gc = round((cnt['C'] + cnt['G']) / len(w), 4)
+        result.append(gc)
+
+    # Pad last positions w/ 0
+    pad = [0] * (len(seq) - len(result))
+    _ = result.extend(pad)
+    return result
+
+
+def prepare_data_for_vis(v, tmp, primers, outdir):
+    fp = Path(outdir)
+
+    # --- Primers ---
+    # bed format
+    cnt = 0
+
+    for pair in primers:
+        cnt += 1
+        result = ''
+
+        for x in ['fwd', 'rev']:
+            chrom = tmp.feat.chrom
+            start = tmp.invert_relative_pos(pair.data[x]['start'])
+            end = tmp.invert_relative_pos(pair.data[x]['end'])
+            if not start < end:
+                start, end = end, start
+            name = uuid4().__str__() + f'::{x}'
+            score = cnt
+            result += f'{chrom}\t{start}\t{end}\t{name}\t{score}\t.\n'
+
+        with open(fp / f'p{cnt}.bed', 'w+') as out:
+            out.write(result)
+
     # --- Exons ---
     # bed format
     # By default, tmp.region contains all exons.
@@ -53,8 +115,8 @@ def prepare_data_for_vis(v, tmp, primers, prefix):
             f'{i.chrom}\t{start}\t{end}\t{number}\t.\t{i.strand}\n'
         bed = ''.join([v for k, v in sorted(features.items())])
 
-    with open(f'{prefix}.bed', 'w+') as out:
-        out.write(bed) 
+    with open(fp / 'exons.bed', 'w+') as out:
+        out.write(bed)
     '''
     NC_000017.10    7571739 7573008 11  .   -
     NC_000017.10    7573927 7574033 10  .   -
@@ -69,18 +131,41 @@ def prepare_data_for_vis(v, tmp, primers, prefix):
     NC_000017.10    7590695 7590808 1   .   -
     '''
     
-    # --- SNVs ---
+    # --- SNVs and mask ---
     # bigwig format, 0-based:
     # https://www.biostars.org/p/354635/
     # https://www.biostars.org/p/84686/
+    
+    # SNVs
     result = ''
     for rel_pos, snvs in tmp.mask_freqs.items():
         gen_pos = tmp.invert_relative_pos(rel_pos)
         for db, freq in snvs:
-            freq = np.log(freq)
+            # TODO minmax scalar
+            freq = np.abs(np.log(freq))
+            #freq = 1
             result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{freq}\n'
     
-    with open(f'{prefix}.bw', 'w+') as out:
+    with open(fp / 'variants.bedgraph', 'w+') as out:
+        out.write(result)
+
+    # Mask
+    result = ''
+    for rel_pos in tmp.mask:
+        gen_pos = tmp.invert_relative_pos(rel_pos)
+        result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{1}\n'
+    
+    with open(fp / 'mask.bedgraph', 'w+') as out:
+        out.write(result)
+
+    # GC content
+    gc = calculate_gc_content(tmp.sequence, 50, 49, truncate=False)
+    result = ''
+    for rel_pos, v in enumerate(gc):
+        gen_pos = tmp.invert_relative_pos(rel_pos)
+        result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{v}\n'
+    
+    with open(fp / 'gc.bedgraph', 'w+') as out:
         out.write(result)
 
     return None

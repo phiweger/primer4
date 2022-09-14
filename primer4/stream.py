@@ -41,16 +41,20 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         raise ValueError('Method is not implemented, exit.')
 
     tmp = Template(v, db)
+    
+    # Annotate templete
     tmp.load_variation_freqs_(vardbs)
     tmp.load_variation_(max_variation)
-    
+    tmp.get_sequence_(genome)
+
+    # Mask and get primers
     if method == 'sanger':
-        masked = mask_sequence(tmp.get_sequence(genome), tmp.mask)
+        masked = mask_sequence(tmp.sequence, tmp.mask)
         constraints = tmp.apply(method, db, params)
         primers = [p for p in next(design_primers(masked, constraints, params, []))]
 
     elif method == 'qpcr':
-        masked = mask_sequence(tmp.get_sequence(genome), tmp.mask)
+        masked = mask_sequence(tmp.sequence, tmp.mask)
         
         primers = []
         for constraints in tmp.apply('qpcr', db, params):

@@ -249,6 +249,12 @@ class Template():
         # assert len(s) == len(self.feat)
         return s
 
+    def get_sequence_(self, genome):
+        s = genome[self.feat.chrom][self.start:self.end].__str__()
+        # assert len(s) == len(self.feat)
+        self.sequence = s
+        return None
+
     def relative_pos(self, n):
         # n .. genomic position
         # Primer3 needs positions relative to sequence (when masking etc.)

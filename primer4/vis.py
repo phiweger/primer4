@@ -1,5 +1,5 @@
 from collections import Counter
-import itertools
+from itertools import islice
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -52,12 +52,12 @@ def windows(iterable, length=2, overlap=0, truncate=False):
     '''
 
     it = iter(iterable)
-    results = list(itertools.islice(it, length))
+    results = list(islice(it, length))
     
     while len(results) == length:
         yield results
         results = results[length-overlap:]
-        results.extend(itertools.islice(it, length-overlap))
+        results.extend(islice(it, length-overlap))
     
     if truncate:
         if results and len(results) == length:
@@ -82,15 +82,23 @@ def calculate_gc_content(seq, length=50, overlap=49, truncate=False):
 
 def prepare_data_for_vis(v, tmp, primers, outdir):
     fp = Path(outdir)
+    max_n_primers = 3
 
     # --- Primers ---
     # bed format
     cnt = 0
 
-    for pair in primers:
-        cnt += 1
-        result = ''
+    # https://matplotlib.org/stable/tutorials/colors/colors.html
+    colors = {
+        1: 'Red',
+        2: 'Green',
+        3: 'Blue'
+        }
 
+    result = ''
+    for pair in islice(primers, max_n_primers):
+        cnt += 1
+        
         for x in ['fwd', 'rev']:
             chrom = tmp.feat.chrom
             start = tmp.invert_relative_pos(pair.data[x]['start'])
@@ -98,11 +106,12 @@ def prepare_data_for_vis(v, tmp, primers, outdir):
             if not start < end:
                 start, end = end, start
             name = uuid4().__str__() + f'::{x}'
+            # score = colors[cnt]
             score = cnt
-            result += f'{chrom}\t{start}\t{end}\t{name}\t{score}\t.\n'
+            result += f'{chrom}\t{start}\t{end}\t{name}\t{score}\t-\n'
 
-        with open(fp / f'p{cnt}.bed', 'w+') as out:
-            out.write(result)
+    with open(fp / 'primers.bed', 'w+') as out:
+        out.write(result)
 
     # --- Exons ---
     # bed format
@@ -169,4 +178,3 @@ def prepare_data_for_vis(v, tmp, primers, outdir):
         out.write(result)
 
     return None
-

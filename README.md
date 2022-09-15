@@ -44,7 +44,7 @@ mamba install -y -c bioconda -c conda-forge \
     gffutils=0.10.1 \
     pysam=0.17.0 \
     primer3-py=0.6.1 \
-    pygenometracks=3.5
+    pygenometracks=3.7
 
 pip install cdot==0.2.2 
 

@@ -212,8 +212,8 @@ def main(fp_config):
         else:
             return None
     # What's in "primers"?
-    #import pdb
-    #pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     # if primers: dir(primers[0])
     # dir(tmp)
     # [... 'data', 'fwd', 'insert', 'name', 'penalty', 'rev', 'save', 'to_c', 

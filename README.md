@@ -27,27 +27,30 @@ The workflow will:
 ## Setup
 
 ```bash
-conda install -y -n primer -c bioconda nextflow && conda activate primer
-git clone github.com/phiweger/primer4 && cd primer4 && pip install -e .
-mkdir data
-# ^ add data (see below) in here, see below; or put somewhere else and change
-# paths in config.json
+NAME=primer4
+conda create -y -n $NAME -c bioconda -c conda-forge mamba python=3.8
+conda activate $NAME
 
-# And some more dependencies
-conda install -y python=3.8 pandas=1.3.5 numpy=1.22.0 click=8.0.3 pip=21.3.1 pytest=6.2.5
-conda install -y -c bioconda hgvs=1.5.1 blast=2.12.0 pyfaidx=0.6.3.1 gffutils=0.10.1 pysam=0.17.0 primer3-py=0.6.1
+mamba install -y -c bioconda -c conda-forge \
+    pandas \
+    numpy \
+    click \
+    pip \
+    pytest \
+    streamlit=1.8.1 \
+    hgvs=1.5.1 \
+    blast=2.12.0 \
+    pyfaidx=0.6.3.1 \
+    gffutils=0.10.1 \
+    pysam=0.17.0 \
+    primer3-py=0.6.1 \
+    pygenometracks=3.5
 
-# pip needs "==" instead of "="
-pip install cdot==0.2.2
-pip install streamlit==1.8.1
+pip install cdot==0.2.2 
 
-# hgvs alternative https://github.com/counsyl/hgvs
+conda list -n $NAME | grep -v '#' > requirements.txt
 
-# Maybe for vis:
-# https://github.com/deeptools/pyGenomeTracks
-conda create -n pygenometracks -c bioconda -c conda-forge mamba python=3.7
-conda activate pygenometracks
-mamba install -c bioconda -c conda-forge pygenometracks=3.5
+git clone https://github.com/phiweger/primer4 && cd primer4 && pip install -e .
 ```
 
 

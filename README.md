@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="img/logo.png" alt="A rabbit" width="700">
+    <img src="img/logo.png" alt="Logo" width="700">
 </p>
 
 
@@ -68,6 +68,12 @@ streamlit run primer4/stream.py -- -c config.json
 # Args after "--":
 # https://discuss.streamlit.io/t/command-line-arguments/386/4
 ```
+
+You should see something like this:
+
+<p align="center">
+    <img src="img/interface.png" alt="Interface" width="700">
+</p>
 
 
 ## Run with Docker

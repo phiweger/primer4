@@ -20,7 +20,8 @@ import streamlit as st
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
 from primer4.utils import mask_sequence, reconstruct_mrna, log
-from primer4.vis import Beauty, prepare_mock_data_for_vis
+from primer4.vis import prepare_data_for_vis
+# from primer4.vis import Beauty, prepare_mock_data_for_vis
 from primer4.warnings import warn
 
 
@@ -212,8 +213,8 @@ def main(fp_config):
         else:
             return None
     # What's in "primers"?
-    # import pdb
-    # pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
     # if primers: dir(primers[0])
     # dir(tmp)
     # [... 'data', 'fwd', 'insert', 'name', 'penalty', 'rev', 'save', 'to_c', 
@@ -241,11 +242,33 @@ def main(fp_config):
         df.columns = 'order name penalty fwd fwd_tm rev rev_tm'.split(' ')    
         # https://docs.streamlit.io/library/api-reference/data/st.dataframe
         # st.table(df)
+        st.text('\n')
         st.dataframe(df)
 
         # Plot something
-        data = prepare_mock_data_for_vis()
-        _ = Beauty(data).plot()
+        # data = prepare_mock_data_for_vis()
+        #_ = Beauty(data).plot()
+
+        # Take all result data and create an image
+        
+        # "image" is generated like so:
+        # from PIL import Image
+        # image = Image.open(fp)
+        image = prepare_data_for_vis(tmp.data, tmp, primers)
+
+        # Center image
+        col1, col2, col3 = st.columns([1, 1000, 1])
+        st.text('\n')
+        with col1:
+            st.write('')
+        with col2:
+            st.image(image)
+        with col3:
+            st.write('')    
+        #from PIL import Image
+        #image = Image.open(img_fp)
+        # st.image(image)
+        #img_fp.cleanup()
 
         # Download
         # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-pandas-dataframe-csv

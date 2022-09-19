@@ -2,12 +2,14 @@ from collections import Counter
 from itertools import islice
 from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 
+from jinja2 import Template
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
-
+    
 
 def prepare_mock_data_for_vis():
     # Data for plotting
@@ -80,37 +82,56 @@ def calculate_gc_content(seq, length=50, overlap=49, truncate=False):
     return result
 
 
-def prepare_data_for_vis(v, tmp, primers, outdir):
-    fp = Path(outdir)
+def prepare_data_for_vis(v, tmp, primers):
+    '''
+    Main fn to prepare, well, data for vis ...
+    '''
     max_n_primers = 3
 
-    # --- Primers ---
-    # bed format
+    # --- Primers and query variant ---
     cnt = 0
+    tmp_dir = TemporaryDirectory()
+    tmp_fp = Path(tmp_dir.name)
 
-    # https://matplotlib.org/stable/tutorials/colors/colors.html
-    colors = {
-        1: 'Red',
-        2: 'Green',
-        3: 'Blue'
-        }
+    with open(tmp_fp / 'query.bed', 'w+') as out:
+        # TODO: this will break,  bc/ c_to_g, what about non-coding?
+        # For non-coding variants, we have to apply the offset once the
+        # coding position has been mapped to genomic.
+        start = tmp.c_to_g[v.start] + v.start_offset
+        end = tmp.c_to_g[v.end] + v.end_offset
+        # .bed fmt requires that start be smaller then end position
+        if start > end:
+            start, end = end, start
+        # Make non-0 interval if necessary (for plotting to work)
+        if start == end:
+            end += 1
+
+        line = f'{tmp.feat.chrom}\t{start}\t{end}\t.\t.\t.\n'
+        out.write(line)
+        # print(line)
 
     result = ''
+    positions = []
     for pair in islice(primers, max_n_primers):
         cnt += 1
         
         for x in ['fwd', 'rev']:
             chrom = tmp.feat.chrom
+            
             start = tmp.invert_relative_pos(pair.data[x]['start'])
             end = tmp.invert_relative_pos(pair.data[x]['end'])
+            positions.append(start)
+            positions.append(end)
+            
             if not start < end:
                 start, end = end, start
             name = uuid4().__str__() + f'::{x}'
             # score = colors[cnt]
             score = cnt
-            result += f'{chrom}\t{start}\t{end}\t{name}\t{score}\t-\n'
+            result += f'{chrom}\t{start}\t{end}\t{name}\t{score}\t{"+" if x == "fwd" else "-" }\n'
+            # print(result)
 
-    with open(fp / 'primers.bed', 'w+') as out:
+    with open(tmp_fp / 'primers.bed', 'w+') as out:
         out.write(result)
 
     # --- Exons ---
@@ -124,7 +145,7 @@ def prepare_data_for_vis(v, tmp, primers, outdir):
             f'{i.chrom}\t{start}\t{end}\t{number}\t.\t{i.strand}\n'
         bed = ''.join([v for k, v in sorted(features.items())])
 
-    with open(fp / 'exons.bed', 'w+') as out:
+    with open(tmp_fp / 'exons.bed', 'w+') as out:
         out.write(bed)
     '''
     NC_000017.10    7571739 7573008 11  .   -
@@ -155,7 +176,7 @@ def prepare_data_for_vis(v, tmp, primers, outdir):
             #freq = 1
             result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{freq}\n'
     
-    with open(fp / 'variants.bedgraph', 'w+') as out:
+    with open(tmp_fp / 'variants.bedgraph', 'w+') as out:
         out.write(result)
 
     # Mask
@@ -164,7 +185,7 @@ def prepare_data_for_vis(v, tmp, primers, outdir):
         gen_pos = tmp.invert_relative_pos(rel_pos)
         result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{1}\n'
     
-    with open(fp / 'mask.bedgraph', 'w+') as out:
+    with open(tmp_fp / 'mask.bedgraph', 'w+') as out:
         out.write(result)
 
     # GC content
@@ -174,7 +195,44 @@ def prepare_data_for_vis(v, tmp, primers, outdir):
         gen_pos = tmp.invert_relative_pos(rel_pos)
         result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{v}\n'
     
-    with open(fp / 'gc.bedgraph', 'w+') as out:
+    with open(tmp_fp / 'gc.bedgraph', 'w+') as out:
         out.write(result)
 
-    return None
+
+    content_tracks_spec = {
+        'query_fp': str(tmp_fp / 'query.bed'),
+        'variants_fp': str(tmp_fp / 'variants.bedgraph'),
+        'gc_fp': str(tmp_fp / 'gc.bedgraph'),
+        'mask_fp': str(tmp_fp / 'mask.bedgraph'),
+        'primers_fp': str(tmp_fp / 'primers.bed'),
+        'exons_fp': str(tmp_fp / 'exons.bed'),
+        'exons_height': 2
+    }
+
+    
+    with open('tracks.empty.ini', 'r') as file:
+        s = file.read()
+
+    empty = Template(s)
+    filled = empty.render(**content_tracks_spec)
+
+    with open(tmp_fp / 'tracks.maybe.ini', 'w+') as out:
+        out.write(filled)
+
+    # img_fp = str(out_fp / 'nice_image2.png')
+    img_fp = str(tmp_fp / 'nice_image2.png')
+
+    import subprocess
+    subprocess.run([
+        'pyGenomeTracks',
+        '--tracks', str(tmp_fp / 'tracks.maybe.ini'),
+        '--region', f'{tmp.feat.chrom}:{np.min(positions)-100}-{np.max(positions)+100}',
+        '--outFileName', img_fp
+        ])
+
+
+    from PIL import Image
+    image = Image.open(img_fp)
+
+    tmp_dir.cleanup()
+    return image

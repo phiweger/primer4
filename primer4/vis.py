@@ -2,6 +2,7 @@ from collections import Counter
 from itertools import islice
 from io import BytesIO
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
@@ -216,16 +217,14 @@ def prepare_data_for_vis(v, tmp, primers):
     empty = Template(s)
     filled = empty.render(**content_tracks_spec)
 
-    with open(tmp_fp / 'tracks.maybe.ini', 'w+') as out:
+    with open(tmp_fp / 'tracks.filled.ini', 'w+') as out:
         out.write(filled)
 
-    # img_fp = str(out_fp / 'nice_image2.png')
-    img_fp = str(tmp_fp / 'nice_image2.png')
+    img_fp = str(tmp_fp / 'img.png')
 
-    import subprocess
     subprocess.run([
         'pyGenomeTracks',
-        '--tracks', str(tmp_fp / 'tracks.maybe.ini'),
+        '--tracks', str(tmp_fp / 'tracks.filled.ini'),
         '--region', f'{tmp.feat.chrom}:{np.min(positions)-100}-{np.max(positions)+100}',
         '--outFileName', img_fp
         ])

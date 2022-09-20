@@ -1,3 +1,4 @@
+from collections import Counter
 import re
 from uuid import uuid4
 
@@ -332,6 +333,8 @@ class PrimerPair():
         "sequence": "ACGTCTGAAAATGACCCTCACT",
         "Tm": 59.63
     }
+
+    TODO: Add mismatches
     '''
     def __init__(self, d):
         self.name = uuid4().__str__().split('-')[0]
@@ -383,3 +386,13 @@ class PrimerPair():
         with open(fp, 'w+') as out:
             for i in ['fwd', 'rev']:
                 out.write(f'>{self.name}.{i}\n{self.data[i]["sequence"]}\n')
+
+    def get_amplicon_len(self):
+        return self.rev.end - self.fwd.start
+
+    def get_gc(self, direction):
+        seq = self.data[direction]['sequence']
+        cnt = Counter(seq)
+        return round((cnt['C'] + cnt['G']) / len(seq), 4)
+
+

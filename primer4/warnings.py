@@ -10,5 +10,6 @@ def warn(method, params, amplicon_len_min, amplicon_len_max):
 
     if not all(i==j for i, j in zip(original, [amplicon_len_min, amplicon_len_max])):
         # https://emojifinder.com/fear
-        st.warning('Amplicon values outside of typical range', icon='😱')
+        st.warning('Amplicon values outside of typical range')
+        # icon='😱'
     return None

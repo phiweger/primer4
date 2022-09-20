@@ -69,7 +69,7 @@ streamlit run primer4/stream.py -- -c config.json
 # https://discuss.streamlit.io/t/command-line-arguments/386/4
 ```
 
-You should see something like this:
+You should see something like this (modify `tracks.empty.ini` to adjust the plot; additional options are documented in `tracks.annotation.ini`):
 
 <p align="center">
     <img src="img/interface.png" alt="Interface" width="700">

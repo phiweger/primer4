@@ -117,6 +117,8 @@ args = parser.parse_args()
 
 
 def main(fp_config):
+    st.set_page_config(layout='centered')
+
     genome, hdp, params, vardbs = housekeeping(fp_config)
 
     # Why is load annotation data here, not in housekeeping fn?
@@ -230,7 +232,7 @@ def main(fp_config):
         # print(pair.name)
         # print(pair.data)
 
-        l.append(f"{order},{pair.name},{pair.penalty},{pair.data['fwd']['sequence']},{pair.data['fwd']['Tm']},{pair.data['rev']['sequence']},{pair.data['rev']['Tm']}\n")
+        l.append(f"{pair.get_amplicon_len()},{pair.penalty},{pair.get_gc('fwd')},{pair.get_gc('rev')},{pair.data['fwd']['Tm']},{pair.data['rev']['Tm']},{pair.data['fwd']['sequence']},{pair.data['rev']['sequence']}\n")
 
     # Any primers found?
     if not l:
@@ -239,12 +241,15 @@ def main(fp_config):
     else:
         # Display dataframe
         df = pd.DataFrame([i.split(',') for i in l])
-        df.columns = 'order name penalty fwd fwd_tm rev rev_tm'.split(' ')    
+        df.columns = 'amplicon_len penalty fwd_gc rev_gc fwd_tm rev_tm fwd rev'.split(' ')    
         # https://docs.streamlit.io/library/api-reference/data/st.dataframe
         # st.table(df)
         st.text('\n')
         st.dataframe(df)
-
+        # TODO: Style columns?
+        # https://stackoverflow.com/questions/41654949/pandas-style-function-to-highlight-specific-columns
+        # st.dataframe(df.style.highlight_max(axis=1))
+        
         # Plot something
         # data = prepare_mock_data_for_vis()
         #_ = Beauty(data).plot()

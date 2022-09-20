@@ -2,9 +2,10 @@ from collections import Counter
 from itertools import islice
 from io import BytesIO
 from pathlib import Path
+from PIL import Image
 import subprocess
 from tempfile import TemporaryDirectory
-from uuid import uuid4
+# from uuid import uuid4
 
 from jinja2 import Template
 import matplotlib.pyplot as plt
@@ -87,10 +88,11 @@ def prepare_data_for_vis(v, tmp, primers):
     '''
     Main fn to prepare, well, data for vis ...
     '''
-    max_n_primers = 3
+    max_n_primers = 5
+    # Set2 colormap has 8 colors
 
     # --- Primers and query variant ---
-    cnt = 0
+
     tmp_dir = TemporaryDirectory()
     tmp_fp = Path(tmp_dir.name)
 
@@ -113,9 +115,10 @@ def prepare_data_for_vis(v, tmp, primers):
 
     result = ''
     positions = []
+    cnt = 0
     for pair in islice(primers, max_n_primers):
-        cnt += 1
-        
+        # name = uuid4().__str__() + f'::{x}'
+        name = cnt
         for x in ['fwd', 'rev']:
             chrom = tmp.feat.chrom
             
@@ -126,11 +129,12 @@ def prepare_data_for_vis(v, tmp, primers):
             
             if not start < end:
                 start, end = end, start
-            name = uuid4().__str__() + f'::{x}'
             # score = colors[cnt]
-            score = cnt
+            # score = cnt
+            score = pair.penalty
             result += f'{chrom}\t{start}\t{end}\t{name}\t{score}\t{"+" if x == "fwd" else "-" }\n'
             # print(result)
+        cnt += 1
 
     with open(tmp_fp / 'primers.bed', 'w+') as out:
         out.write(result)
@@ -207,7 +211,6 @@ def prepare_data_for_vis(v, tmp, primers):
         'mask_fp': str(tmp_fp / 'mask.bedgraph'),
         'primers_fp': str(tmp_fp / 'primers.bed'),
         'exons_fp': str(tmp_fp / 'exons.bed'),
-        'exons_height': 2
     }
 
     
@@ -226,12 +229,17 @@ def prepare_data_for_vis(v, tmp, primers):
         'pyGenomeTracks',
         '--tracks', str(tmp_fp / 'tracks.filled.ini'),
         '--region', f'{tmp.feat.chrom}:{np.min(positions)-100}-{np.max(positions)+100}',
-        '--outFileName', img_fp
+        '--outFileName', img_fp,
+        '--dpi', '300',
         ])
 
+    try:
+        image = Image.open(img_fp)
+        tmp_dir.cleanup()
+        return image
 
-    from PIL import Image
-    image = Image.open(img_fp)
+    except FileNotFoundError:
+        tmp_dir.cleanup()
+        st.error('No image generated, maybe "tracks.ini" contains errors?')
+        st.stop()
 
-    tmp_dir.cleanup()
-    return image

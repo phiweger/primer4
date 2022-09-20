@@ -11,7 +11,9 @@ from jinja2 import Template
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
-    
+
+from primer4.models import Variant
+
 
 def prepare_mock_data_for_vis():
     # Data for plotting
@@ -96,22 +98,23 @@ def prepare_data_for_vis(v, tmp, primers):
     tmp_dir = TemporaryDirectory()
     tmp_fp = Path(tmp_dir.name)
 
-    with open(tmp_fp / 'query.bed', 'w+') as out:
-        # TODO: this will break,  bc/ c_to_g, what about non-coding?
-        # For non-coding variants, we have to apply the offset once the
-        # coding position has been mapped to genomic.
-        start = tmp.c_to_g[v.start] + v.start_offset
-        end = tmp.c_to_g[v.end] + v.end_offset
-        # .bed fmt requires that start be smaller then end position
-        if start > end:
-            start, end = end, start
-        # Make non-0 interval if necessary (for plotting to work)
-        if start == end:
-            end += 1
+    if type(v) == Variant:
+        with open(tmp_fp / 'query.bed', 'w+') as out:
+            # TODO: this will break,  bc/ c_to_g, what about non-coding?
+            # For non-coding variants, we have to apply the offset once the
+            # coding position has been mapped to genomic.
+            start = tmp.c_to_g[v.start] + v.start_offset
+            end = tmp.c_to_g[v.end] + v.end_offset
+            # .bed fmt requires that start be smaller then end position
+            if start > end:
+                start, end = end, start
+            # Make non-0 interval if necessary (for plotting to work)
+            if start == end:
+                end += 1
 
-        line = f'{tmp.feat.chrom}\t{start}\t{end}\t.\t.\t.\n'
-        out.write(line)
-        # print(line)
+            line = f'{tmp.feat.chrom}\t{start}\t{end}\t.\t.\t.\n'
+            out.write(line)
+            # print(line)
 
     result = ''
     positions = []
@@ -218,7 +221,13 @@ def prepare_data_for_vis(v, tmp, primers):
         s = file.read()
 
     empty = Template(s)
-    filled = empty.render(**content_tracks_spec)
+
+    if type(v) == Variant:
+        comment = ''
+    else:
+        comment = '#'
+
+    filled = empty.render(**content_tracks_spec, comment=comment)
 
     with open(tmp_fp / 'tracks.filled.ini', 'w+') as out:
         out.write(filled)

@@ -239,9 +239,13 @@ def main(fp_config):
         st.write('No primers found under the provided constrains. Relax! (the constraints)')
     
     else:
+        # TODO: Add mismatches and poistion of mm from 3' end
         # Display dataframe
         df = pd.DataFrame([i.split(',') for i in l])
-        df.columns = 'amplicon_len penalty fwd_gc rev_gc fwd_tm rev_tm fwd rev'.split(' ')    
+        df.columns = 'Amplicon,penalty,fwd GC,rev GC,fwd Tm, rev Tm,fwd,rev'.split(',')    
+        # Sort df; in case of qPCR we look first left then right of exon so we
+        # get two independent sets of primers, ie df is not ordered in this case
+        df = df.sort_values('penalty')
         # https://docs.streamlit.io/library/api-reference/data/st.dataframe
         # st.table(df)
         st.text('\n')

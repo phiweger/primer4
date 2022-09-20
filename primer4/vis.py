@@ -91,6 +91,7 @@ def prepare_data_for_vis(v, tmp, primers):
     Main fn to prepare, well, data for vis ...
     '''
     max_n_primers = 5
+    is_variant = type(v) == Variant
     # Set2 colormap has 8 colors
 
     # --- Primers and query variant ---
@@ -222,7 +223,7 @@ def prepare_data_for_vis(v, tmp, primers):
 
     empty = Template(s)
 
-    if type(v) == Variant:
+    if is_variant:
         comment = ''
     else:
         comment = '#'

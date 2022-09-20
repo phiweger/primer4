@@ -145,7 +145,7 @@ def main(fp_config):
 
     st.markdown(
         r'''
-        ## Primer4
+        ## ❤️ Primer4u ❤️
 
         Example queries:
 

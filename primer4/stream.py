@@ -222,17 +222,17 @@ def main(fp_config):
                     st.warning(f'Used trancript {used_tx}')
                     code = [code[0].replace(tx, used_tx)] + code[1:]
 
-                primers, tmp = gimme_some_primers(
-                    method,
-                    code,
-                    params['data']['reference'],
-                    genome,
-                    hdp,
-                    db,
-                    vardbs,
-                    params,
-                    max_variation)
-
+                with st.spinner(text='In progress ...'):
+                    primers, tmp = gimme_some_primers(
+                        method,
+                        code,
+                        params['data']['reference'],
+                        genome,
+                        hdp,
+                        db,
+                        vardbs,
+                        params,
+                        max_variation)
                 st.write('Done.')
 
         else:

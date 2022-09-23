@@ -5,6 +5,7 @@ from cdot.hgvs.dataproviders import JSONDataProvider
 from gffutils import FeatureDB
 
 from primer4.models import Variant, ExonDelta, Template
+from primer4.utils import sync_tx_with_feature_db
 
 
 @pytest.fixture(scope='session')
@@ -94,3 +95,11 @@ def test_delta(code, is_delta, is_unique, db):
     assert ed.is_delta == is_delta
     assert ed.is_unique == is_unique
       
+
+def test_version_mismatch_tx(db):
+    '''
+    Test version mismatch between query and feature database
+    '''
+    assert 'NM_005585.5' == sync_tx_with_feature_db('NM_005585.4', db)
+
+

@@ -13,13 +13,19 @@ import os
 import click
 from cdot.hgvs.dataproviders import JSONDataProvider
 import gffutils
+import hgvs
 import pandas as pd
 from pyfaidx import Fasta
 import streamlit as st
 
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
-from primer4.utils import mask_sequence, reconstruct_mrna, log
+from primer4.utils import (
+    mask_sequence, 
+    reconstruct_mrna, 
+    log, 
+    sync_tx_with_feature_db,
+    )
 from primer4.vis import prepare_data_for_vis
 # from primer4.vis import Beauty, prepare_mock_data_for_vis
 from primer4.warnings import warn
@@ -31,13 +37,21 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     gimme_some_primers('qpcr', ('NM_001145408.2', 6), ...)
     gimme_some_primers('mrna', ('NM_000546.6', 6, 7), ...)
     '''
-
     if method == 'sanger':
-        v = Variant(code[0], hdp, db)
+        try:
+            v = Variant(code[0], hdp, db)
+        # TODO: Catch this error in the main fn so we don't have st.x() fn
+        # all over the code? We could let all errors propagate up to there ...
+        except hgvs.exceptions.HGVSParseError:
+            st.warning('Variant could not be parsed, check syntax (spaces?).')
+            st.stop()
+
     elif method == 'qpcr':
         v = SingleExon(code[0], int(code[1]))
+    
     elif method == 'mrna':
         v = ExonSpread(code[0], int(code[1]), int(code[2]))
+    
     else:
         raise ValueError('Method is not implemented, exit.')
 
@@ -145,17 +159,18 @@ def main(fp_config):
 
     st.markdown(
         r'''
-        ## ❤️ Primer4u ❤️
+        ## ❤️ Primer4U ❤️
 
         Example queries:
 
         ```bash
         # Sanger; HGVS syntax
         NM_000546.6:c.215C>G
-        # mRNA; eg "::3" means we target exon 3
-        NM_000546.6::3
-        # qPCR; anchor primers in two exons
-        NM_000546.6::5::6 
+        NM_005585.4:c.1419dup
+        # qPCR; eg "::3" means we target exon 3
+        NM_000546.6::4
+        # mRNA; anchor primers in two exons
+        NM_000546.6::5::6
         ```
         '''
         )
@@ -195,11 +210,18 @@ def main(fp_config):
                 st.write('Please provide a query')
                 return None
             else:
-                code = order.split('::')
+                code = order.split('::')  # case: NM_000546.6::3
                 # This would otherwise fail later on HGVS parsing error
                 if len(code) > 1 and method == 'sanger':
                     raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
-    
+
+                # Replace transcript version if necessary
+                tx = code[0].split(':')[0]  # case : NM_005585.4:c.1419dup
+                used_tx = sync_tx_with_feature_db(tx, db)
+                if used_tx != tx:
+                    st.warning(f'Used trancript {used_tx}')
+                    code = [code[0].replace(tx, used_tx)] + code[1:]
+
                 primers, tmp = gimme_some_primers(
                     method,
                     code,
@@ -210,8 +232,9 @@ def main(fp_config):
                     vardbs,
                     params,
                     max_variation)
-                
+
                 st.write('Done.')
+
         else:
             return None
     # What's in "primers"?

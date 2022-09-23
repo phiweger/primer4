@@ -9,6 +9,7 @@ import pdb
 import sys
 
 import click
+import gffutils
 from hgvs.parser import Parser
 # https://github.com/biocommons/hgvs
 import primer3
@@ -186,7 +187,6 @@ def exon_context(name, exon, db, params):
     s = genome[ex.chrom][left:right].__str__()
     
     pass
-
 
 
 def variant_context(name, genome, chromosome, g_pos, db, params):
@@ -431,6 +431,7 @@ def manual_c_to_g(tx, c, feature_db):
     return g
 
 
+'''
 def sync_tx_with_feature_db(tx, feature_db):
     # Generate a list of valid IDs so we can validate input:
     IDs = set(i.id.replace('rna-', '') for i in feature_db.features_of_type('mRNA'))
@@ -445,11 +446,42 @@ def sync_tx_with_feature_db(tx, feature_db):
         click.echo('\n' + log('Warning!\n'))
         click.echo(f'Transcript ID not found, version mismatch? Will use {name} instead.')
         # click.echo(f'Not what you want? How about: {m[0]}, {m[1]} or {m[2]}?')
-        chromosome = feature_db[f'rna-{name}'].chrom
+        # chromosome = feature_db[f'rna-{name}'].chrom
         return tx
 
     else:
         return tx
+'''
+
+
+def sync_tx_with_feature_db(tx, feature_db):
+    '''
+    Make sure the required transcript has an annotation in the feature db, or
+    else try to "guess" the right one.
+    '''
+    # Generate a list of valid IDs so we can validate input:
+    try:
+        _ = feature_db[f'rna-{tx}']
+        return tx
+
+    except gffutils.exceptions.FeatureNotFoundError:
+        qry = tx.split('.')[0]
+
+        IDs = set(i.id.replace('rna-', '') for i in feature_db.features_of_type('mRNA'))
+        ID_version = {k: v for k, v in [i.split('.') for i in IDs]}
+        
+        try:
+            v = ID_version[qry]
+            new_tx = f'{qry}.{v}'
+        
+        except KeyError:
+            raise ValueError(f'No matching transcrit (any version) for {qry}')
+
+        #st.warning(f'Transcript ID not found, version mismatch? Will use {new_tx} instead.')
+        click.echo('\n' + log('Warning!\n'))
+        click.echo(f'Transcript ID not found, version mismatch? Will use {new_tx} instead.')
+
+        return new_tx
 
 
 def gc_map2(tx, feature_db):
@@ -472,7 +504,6 @@ def gc_map2(tx, feature_db):
 
         assert max(map_.keys()) == cum
     return map_, dict((v, k) for k, v in map_.items())
-
 
 
 def gc_map(tx, feature_db):

@@ -17,7 +17,8 @@ from primer4.utils import (
     load_variation_freqs,
     log,
     manual_c_to_g,
-    sync_tx_with_feature_db)
+    )
+    # sync_tx_with_feature_db)
 
 
 class Variant():
@@ -58,23 +59,27 @@ class Variant():
         self.g_start = self.g.posedit.pos.start.base
         self.g_end = self.g.posedit.pos.end.base
 
-        # Overwrite tx version to sync w/ annotation; v.tx and v.data.ac
-        self.tx = sync_tx_with_feature_db(self.tx, feature_db)
-
     def __repr__(self):
         return self.code
 
     def parse_code(self, code):
         hp = hgvs.parser.Parser()
-        try:
-            return hp.parse_hgvs_variant(code)
-        except hgvs.exceptions.HGVSParseError:
-            if ed := is_exon_deletion(code):
-                return ed
-            else:
-                # click.echo(log('Invalid HGVS syntax, exit.'))
-                print('Variant cannot be HGVS-parsed!')
-                return None
+        return hp.parse_hgvs_variant(code)
+        
+        #try:
+        #    return hp.parse_hgvs_variant(code)
+        #except hgvs.exceptions.HGVSParseError:
+        #    return None
+            #delta = ExonDelta(code)
+            # if ed := is_exon_deletion(code):
+            #     return ed
+            #if delta.is_delta():
+            #    return delta
+            #
+            #else:
+            #    # click.echo(log('Invalid HGVS syntax, exit.'))
+            #    print('Variant cannot be HGVS-parsed!')
+            #    return None
 
     def map_to_genomic(self, tx_map, genome_version='GRCh37', method='splign'):
         am = AssemblyMapper(
@@ -128,12 +133,12 @@ class ExonDelta():
         try:
             # Try to parse code
             tx = m.group(1)
-            tx = sync_tx_with_feature_db(tx, feature_db)
+            #tx = sync_tx_with_feature_db(tx, feature_db)
         except AttributeError:
             # Not an exon delta;
             # AttributeError: 'NoneType' object has no attribute 'group'
             tx = code.split(':')[0]
-            tx = sync_tx_with_feature_db(tx, feature_db)
+            #tx = sync_tx_with_feature_db(tx, feature_db)
             return tx, False, set()
 
         is_coding = True if m.group(2) == 'c' else False
@@ -212,6 +217,7 @@ class Template():
     def __init__(self, mutation, feature_db, featuretype='exon'):
         self.data = mutation
         self.type = type(mutation)  # Template(v, db).type == Variant
+        self.tx = mutation.tx
         self.feat = feature_db[f'rna-{mutation.tx}']
         self.region = list(
             feature_db.region(
@@ -297,12 +303,22 @@ class Template():
 
         https://daler.github.io/gffutils/autodocs/gffutils.interface.FeatureDB.region.html
         '''
+        #import pdb
+        #pdb.set_trace()
+        
         tx = self.data.tx
         features = {}
         for i in self.region:
             # tmp.region[-1].id
             # 'exon-NM_001143991.2-1'
-            featuretype, name, number = i.id.split('-')
+            try:
+                featuretype, name, number = i.id.split('-')
+            except ValueError:
+                # ValueError: not enough values to unpack (expected 3, got 2)
+                # ['exon', 'NM_173500.4', '10']
+                # ['id', 'KRT8P50']
+                # ['exon', 'NM_173500.4', '9']
+                continue
             if featuretype == 'exon' and name == tx:
                 start, end = sorted([i.start, i.end])
                 features[start] = (number, i)

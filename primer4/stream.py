@@ -20,6 +20,7 @@ import streamlit as st
 
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
+from primer4.hacks import download_button
 from primer4.utils import (
     mask_sequence, 
     reconstruct_mrna, 
@@ -255,28 +256,25 @@ def main(fp_config):
         # print(pair.name)
         # print(pair.data)
 
-        l.append(f"{pair.get_amplicon_len()},{pair.penalty},{pair.get_gc('fwd')},{pair.get_gc('rev')},{pair.data['fwd']['Tm']},{pair.data['rev']['Tm']},{pair.data['fwd']['sequence']},{pair.data['rev']['sequence']}\n")
+        row = [
+            pair.get_amplicon_len(),
+            pair.penalty,
+            pair.get_gc('fwd'),
+            pair.get_gc('rev'),
+            pair.data['fwd']['Tm'],
+            pair.data['rev']['Tm'],
+            pair.data['fwd']['sequence'],
+            pair.data['rev']['sequence'],
+        ]
+
+        # l.append(f"{pair.get_amplicon_len()},{pair.penalty},{pair.get_gc('fwd')},{pair.get_gc('rev')},{pair.data['fwd']['Tm']},{pair.data['rev']['Tm']},{pair.data['fwd']['sequence']},{pair.data['rev']['sequence']}")
+        l.append(row)
 
     # Any primers found?
     if not l:
         st.write('No primers found under the provided constrains. Relax! (the constraints)')
     
     else:
-        # TODO: Add mismatches and poistion of mm from 3' end
-        # Display dataframe
-        df = pd.DataFrame([i.split(',') for i in l])
-        df.columns = 'Amplicon,penalty,fwd GC,rev GC,fwd Tm, rev Tm,fwd,rev'.split(',')    
-        # Sort df; in case of qPCR we look first left then right of exon so we
-        # get two independent sets of primers, ie df is not ordered in this case
-        df = df.sort_values('penalty')
-        # https://docs.streamlit.io/library/api-reference/data/st.dataframe
-        # st.table(df)
-        st.text('\n')
-        st.dataframe(df)
-        # TODO: Style columns?
-        # https://stackoverflow.com/questions/41654949/pandas-style-function-to-highlight-specific-columns
-        # st.dataframe(df.style.highlight_max(axis=1))
-        
         # Plot something
         # data = prepare_mock_data_for_vis()
         #_ = Beauty(data).plot()
@@ -302,21 +300,46 @@ def main(fp_config):
         # st.image(image)
         #img_fp.cleanup()
 
+
+        # TODO: Add mismatches and poistion of mm from 3' end
+        # Display dataframe
+        df = pd.DataFrame(l)
+        df.columns = 'Amplicon,penalty,fwd GC,rev GC,fwd Tm,rev Tm,fwd,rev'.split(',')    
+        # Sort df; in case of qPCR we look first left then right of exon so we
+        # get two independent sets of primers, ie df is not ordered in this case
+        df = df.sort_values('penalty')
+        # https://docs.streamlit.io/library/api-reference/data/st.dataframe
+        # st.table(df)
+        st.text('\n')
+        st.dataframe(df)
+        # TODO: Style columns?
+        # https://stackoverflow.com/questions/41654949/pandas-style-function-to-highlight-specific-columns
+        # st.dataframe(df.style.highlight_max(axis=1))
+        
         # Download
         # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-pandas-dataframe-csv
         # https://docs.streamlit.io/knowledge-base/using-streamlit/how-download-file-streamlit
         @st.cache
         def convert_df(df):
-            return df.to_csv().encode('utf-8')
+            return df.to_csv(index=False, quoting=None).encode('utf-8')
 
+        #import pdb
+        #pdb.set_trace()
         csv = convert_df(df)
-        st.download_button(
-            "Download",
-            csv,
-            "file.csv",
-            "text/csv",
-            key='download-csv'
-            )
+
+        # This reloads the entire page, see "hacks.py"
+        # st.download_button(
+        #     "Download",
+        #     csv,
+        #     "file.csv",
+        #     "text/csv",
+        #     key='download-csv'
+        #     )
+
+        #import pandas as pd
+        
+        download_button_str = download_button(csv, 'primers.csv', f'Download')
+        st.markdown(download_button_str, unsafe_allow_html=True)
 
     return None
 

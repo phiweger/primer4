@@ -46,7 +46,8 @@ mamba install -y -c bioconda -c conda-forge \
     primer3-py=0.6.1 \
     pygenometracks=3.7
 
-pip install cdot==0.2.2 
+pip install cdot==0.2.2
+# streamlit-aggrid==0.3.3
 
 conda list -n $NAME | grep -v '#' > requirements.txt
 

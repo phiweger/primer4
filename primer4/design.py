@@ -8,10 +8,10 @@ import tempfile
 import numpy as np
 import pandas as pd
 import primer3
-import streamlit as st
 from tqdm import tqdm
 
 from primer4.models import PrimerPair
+from primer4.utils import log
 
 
 def design_primers(masked, constraints, params, previous=[]):
@@ -142,7 +142,7 @@ def sort_penalty(primers):
     return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
 
 
-def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000, test=False):
+def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000):
     '''
     Params mostly from ISPCR from UCSC genome browser:
 
@@ -162,19 +162,8 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     tmpdir = tempfile.TemporaryDirectory()
     p = tmpdir.name
 
-    if not test:
-        for primer in primers:
-            primer.save(f'{p}/{primer.name}.fna')
-    else:
-        Primer = namedtuple('PrimerPair', ['name', 'sequences'])
-        pp = Primer('foobar', sequences=primers)
-        ####################################################
-        with open(f'{p}/{pp.name}.fna', 'w+') as out:
-            out.write(f'>fwd\n{pp.sequences[0]}\n')
-            out.write(f'>rev\n{pp.sequences[1]}\n')
-
-        primers = [pp]
-
+    for primer in primers:
+        primer.save(f'{p}/{primer.name}.fna')
 
     fields = 'qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore nident btop sstrand'
     steps = [
@@ -187,9 +176,9 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     Examples: 7AG39, 7A-39, 6-G-A41
     '''
     command = '; '.join(steps)
-    print('Running Blastn')
-    log = subprocess.run(command, capture_output=True, shell=True)
-    # print(log)
+    print(log('Searching for alternative binding sites'))
+    log_blast = subprocess.run(command, capture_output=True, shell=True)
+    # print(log_blast)
 
     result = Path(p) / 'result'
     df = pd.read_csv(result, sep='\t', names=fields.split(' '))
@@ -201,6 +190,8 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
         try:
             # Try to parse the number of 3' matches (get the last number)
             # https://stackoverflow.com/questions/5320525/regular-expression-to-match-last-number-in-a-string
+            # print(i['btop'])
+
             matches_3prime = int(re.match(r'.*?(\d+)(?!.*\d)', i['btop']).group(1))
             if matches_3prime < mn_matches:
                 drop_these.append(ix)
@@ -215,7 +206,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     
     unique = set([i.split('.')[0] for i in df['qseqid']])
     
-    print('Combinatorics ...')
+    print(log('Excluding non-unique sites'))
     cnt = defaultdict(int)
     for u in unique:
 
@@ -277,7 +268,44 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
         else:
             print(f'Primer pair {primer.name} does not pass, amplicons calculated: {cnt[primer.name]}')
     # print(results)
-    print(f'{len(results)}/{len(primers)} primer pairs pass all filters')
-    st.write(f'{len(results)}/{len(primers)} primer pairs pass all filters')
     return results
+
+
+def parse_blast_btop(s):
+    '''
+    Blast BTOP string .. think sam CIGAR string, but more flexible
+
+    > The “Blast trace-back operations” (BTOP) string describes the alignment
+    produced by BLAST. This string is similar to the CIGAR string produced in 
+    SAM format, but there are important differences. BTOP is a more flexible 
+    format that lists not only the aligned region but also matches and 
+    mismatches. BTOP operations consist of 1.) a number with a count of 
+    matching letters, 2.) two letters showing a mismatch (e.g., “AG” means A 
+    was replaced by G), or 3.) a dash (“-“) and a letter showing a gap. The box 
+    below shows a blastn run first with BTOP output and then the same run with 
+    the BLAST report showing the alignments.
+
+    -- https://www.ncbi.nlm.nih.gov/books/NBK569862/
+
+    Example: 3GA13, 3GT14, 14, 13-G1TC5, ...
+
+    Usage:
+
+    parse_blast_btop('3GA-13')
+    # '...||.............'
+    '''
+    split = re.findall(r'[A-Za-z]+|\d+|-', s)
+    # '3GA-13' > ['3', 'GA', '-', '13']
+    result = ''
+    for i in split:
+        try:
+            result += int(i) * '.'
+        except ValueError:  # invalid literal for int()
+            result += '|'
+
+    return result
+
+
+
+
 

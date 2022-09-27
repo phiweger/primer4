@@ -88,6 +88,9 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         raise ValueError('Method is not implemented, exit.')
     
     results = check_for_multiple_amplicons(primers, fp_genome)
+    msg = f'{len(results)}/{len(primers)} primer pairs pass all filters'
+    print(log(msg))
+    st.write(msg)
     return results, tmp
 
 
@@ -253,7 +256,7 @@ def main(fp_config):
     
     df = primers_to_df(primers, tmp, order)
     if df.empty:
-        st.write('No primers found under the provided constrains. Relax! (the constraints)')
+        st.write('No primers found under the provided constrains. Relax (the constraints)!')
 
     else:
         # Plot something

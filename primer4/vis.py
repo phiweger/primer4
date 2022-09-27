@@ -10,9 +10,11 @@ from tempfile import TemporaryDirectory
 from jinja2 import Template
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import streamlit as st
 
 from primer4.models import Variant
+from primer4.utils import convert_chrom
 
 
 def prepare_mock_data_for_vis():
@@ -251,4 +253,43 @@ def prepare_data_for_vis(v, tmp, primers):
         tmp_dir.cleanup()
         st.error('No image generated, maybe "tracks.ini" contains errors?')
         st.stop()
+
+
+def primers_to_df(primers, tmp, qry):
+    l = []
+    for pair in primers:
+        _, fwd_start, fwd_end = pair.get_genomic_coords(tmp, 'fwd')
+        _, rev_start, rev_end = pair.get_genomic_coords(tmp, 'rev')
+
+        row = [
+            pair.penalty,
+            pair.get_amplicon_len(),
+            pair.get_gc('fwd'),
+            pair.get_gc('rev'),
+            pair.data['fwd']['Tm'],
+            pair.data['rev']['Tm'],
+            pair.data['fwd']['sequence'],
+            pair.data['rev']['sequence'],
+            tmp.tx,
+            convert_chrom(tmp.feat.chrom),
+            fwd_start,
+            fwd_end,
+            rev_start,
+            rev_end,
+            qry,
+        ]
+        l.append(row)
+
+    # Any primers found?
+    if not l:
+        return pd.DataFrame()
+
+    else:
+        # TODO: Add mismatches and poistion of mm from 3' end
+        df = pd.DataFrame(l)
+        df.columns = 'penalty,amplicon,fwd GC,rev GC,fwd Tm,rev Tm,fwd,rev,transcript,chrom,fwd start,fwd end,rev start,rev end,query'.split(',')    
+        # Sort df; in case of qPCR we look first left then right of exon so we
+        # get two independent sets of primers, ie df is not ordered in this case
+        df = df.sort_values('penalty')
+        return df
 

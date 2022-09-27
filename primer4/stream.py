@@ -22,13 +22,12 @@ from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
 from primer4.hacks import download_button
 from primer4.utils import (
-    convert_chrom,
     log,
     mask_sequence,
     reconstruct_mrna,
     sync_tx_with_feature_db,
     )
-from primer4.vis import prepare_data_for_vis
+from primer4.vis import prepare_data_for_vis, primers_to_df
 # from primer4.vis import Beauty, prepare_mock_data_for_vis
 from primer4.warnings import warn
 
@@ -251,56 +250,15 @@ def main(fp_config):
     # TODO: coding coords
 
     # TODO def prepare_df() in vis
-    l = []
-    for pair in primers:
-        # with open(pout / f'{pair.name}.json', 'w+') as out: 
-        #     json.dump(pair.data, out, indent=4, sort_keys=True)
-        # print(pair.name)
-        # print(pair.data)
-
-        _, fwd_start, fwd_end = pair.get_genomic_coords(tmp, 'fwd')
-        _, rev_start, rev_end = pair.get_genomic_coords(tmp, 'rev')
-
-        row = [
-            pair.penalty,
-            pair.get_amplicon_len(),
-            pair.get_gc('fwd'),
-            pair.get_gc('rev'),
-            pair.data['fwd']['Tm'],
-            pair.data['rev']['Tm'],
-            pair.data['fwd']['sequence'],
-            pair.data['rev']['sequence'],
-            tmp.tx,
-            convert_chrom(tmp.feat.chrom),
-            fwd_start,
-            fwd_end,
-            rev_start,
-            rev_end,
-            order,
-        ]
-
-        # l.append(f"{pair.get_amplicon_len()},{pair.penalty},{pair.get_gc('fwd')},{pair.get_gc('rev')},{pair.data['fwd']['Tm']},{pair.data['rev']['Tm']},{pair.data['fwd']['sequence']},{pair.data['rev']['sequence']}")
-        l.append(row)
-
-    # Any primers found?
-    if not l:
+    
+    df = primers_to_df(primers, tmp, order)
+    if df.empty:
         st.write('No primers found under the provided constrains. Relax! (the constraints)')
 
     else:
-        # TODO: Add mismatches and poistion of mm from 3' end
-        # Display dataframe
-        df = pd.DataFrame(l)
-        df.columns = 'penalty,amplicon,fwd GC,rev GC,fwd Tm,rev Tm,fwd,rev,transcript,chrom,fwd start,fwd end,rev start,rev end,query'.split(',')    
-        # Sort df; in case of qPCR we look first left then right of exon so we
-        # get two independent sets of primers, ie df is not ordered in this case
-        df = df.sort_values('penalty')
-    
-
         # Plot something
         # data = prepare_mock_data_for_vis()
         #_ = Beauty(data).plot()
-
-        # Take all result data and create an image
         
         # "image" is generated like so:
         # from PIL import Image

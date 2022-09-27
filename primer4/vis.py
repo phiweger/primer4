@@ -90,9 +90,8 @@ def prepare_data_for_vis(v, tmp, primers):
     '''
     Main fn to prepare, well, data for vis ...
     '''
-    max_n_primers = 5
+    max_primer_pairs_display = 3
     is_variant = type(v) == Variant
-    # Set2 colormap has 8 colors
 
     # --- Primers and query variant ---
 
@@ -104,11 +103,7 @@ def prepare_data_for_vis(v, tmp, primers):
             # TODO: this will break,  bc/ c_to_g, what about non-coding?
             # For non-coding variants, we have to apply the offset once the
             # coding position has been mapped to genomic.
-            start = tmp.c_to_g[v.start] + v.start_offset
-            end = tmp.c_to_g[v.end] + v.end_offset
-            # .bed fmt requires that start be smaller then end position
-            if start > end:
-                start, end = end, start
+            _, start, end = v.get_genomic_coords(tmp)
             # Make non-0 interval if necessary (for plotting to work)
             if start == end:
                 end += 1
@@ -120,19 +115,22 @@ def prepare_data_for_vis(v, tmp, primers):
     result = ''
     positions = []
     cnt = 0
-    for pair in islice(primers, max_n_primers):
+    for pair in islice(primers, max_primer_pairs_display):
         # name = uuid4().__str__() + f'::{x}'
         name = cnt
         for x in ['fwd', 'rev']:
+
             chrom = tmp.feat.chrom
-            
+            _, start, end = pair.get_genomic_coords(tmp, x)
+            '''
             start = tmp.invert_relative_pos(pair.data[x]['start'])
             end = tmp.invert_relative_pos(pair.data[x]['end'])
+            '''
             positions.append(start)
             positions.append(end)
-            
-            if not start < end:
-                start, end = end, start
+
+            #if not start < end:
+            #    start, end = end, start
             # score = colors[cnt]
             # score = cnt
             score = pair.penalty
@@ -241,7 +239,8 @@ def prepare_data_for_vis(v, tmp, primers):
         '--region', f'{tmp.feat.chrom}:{np.min(positions)-100}-{np.max(positions)+100}',
         '--outFileName', img_fp,
         '--dpi', '300',
-        ])
+        ],
+        stderr=subprocess.DEVNULL)
 
     try:
         image = Image.open(img_fp)

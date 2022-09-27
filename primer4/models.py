@@ -89,6 +89,14 @@ class Variant():
             replace_reference=True)
         return am.c_to_g(self.data)
 
+    def get_genomic_coords(self, template):
+        start = template.c_to_g[self.start] + self.start_offset
+        end = template.c_to_g[self.end] + self.end_offset
+        # .bed fmt requires that start be smaller then end position
+        if start > end:
+            start, end = end, start
+        return template.feat.chrom, start, end
+
 
 class ExonDelta():
     def __init__(self, code, feature_db):
@@ -410,5 +418,16 @@ class PrimerPair():
         seq = self.data[direction]['sequence']
         cnt = Counter(seq)
         return round((cnt['C'] + cnt['G']) / len(seq), 4)
+
+    def get_genomic_coords(self, template, orient=None):
+        if not orient or orient not in ['fwd', 'rev']:
+            raise ValueError('Please provide an orientation [fwd|rev]')
+        chrom = template.feat.chrom
+        start = template.invert_relative_pos(self.data[orient]['start'])
+        end = template.invert_relative_pos(self.data[orient]['end'])
+        if not start < end:
+            start, end = end, start
+        start += 1
+        return chrom, start, end
 
 

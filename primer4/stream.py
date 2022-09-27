@@ -22,9 +22,10 @@ from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
 from primer4.design import design_primers, check_for_multiple_amplicons
 from primer4.hacks import download_button
 from primer4.utils import (
-    mask_sequence, 
-    reconstruct_mrna, 
-    log, 
+    convert_chrom,
+    log,
+    mask_sequence,
+    reconstruct_mrna,
     sync_tx_with_feature_db,
     )
 from primer4.vis import prepare_data_for_vis
@@ -249,6 +250,7 @@ def main(fp_config):
     # [7579197, 7579217, 7579679, 7579699]
     # TODO: coding coords
 
+    # TODO def prepare_df() in vis
     l = []
     for pair in primers:
         # with open(pout / f'{pair.name}.json', 'w+') as out: 
@@ -256,15 +258,25 @@ def main(fp_config):
         # print(pair.name)
         # print(pair.data)
 
+        _, fwd_start, fwd_end = pair.get_genomic_coords(tmp, 'fwd')
+        _, rev_start, rev_end = pair.get_genomic_coords(tmp, 'rev')
+
         row = [
-            pair.get_amplicon_len(),
             pair.penalty,
+            pair.get_amplicon_len(),
             pair.get_gc('fwd'),
             pair.get_gc('rev'),
             pair.data['fwd']['Tm'],
             pair.data['rev']['Tm'],
             pair.data['fwd']['sequence'],
             pair.data['rev']['sequence'],
+            tmp.tx,
+            convert_chrom(tmp.feat.chrom),
+            fwd_start,
+            fwd_end,
+            rev_start,
+            rev_end,
+            order,
         ]
 
         # l.append(f"{pair.get_amplicon_len()},{pair.penalty},{pair.get_gc('fwd')},{pair.get_gc('rev')},{pair.data['fwd']['Tm']},{pair.data['rev']['Tm']},{pair.data['fwd']['sequence']},{pair.data['rev']['sequence']}")
@@ -273,8 +285,17 @@ def main(fp_config):
     # Any primers found?
     if not l:
         st.write('No primers found under the provided constrains. Relax! (the constraints)')
-    
+
     else:
+        # TODO: Add mismatches and poistion of mm from 3' end
+        # Display dataframe
+        df = pd.DataFrame(l)
+        df.columns = 'penalty,amplicon,fwd GC,rev GC,fwd Tm,rev Tm,fwd,rev,transcript,chrom,fwd start,fwd end,rev start,rev end,query'.split(',')    
+        # Sort df; in case of qPCR we look first left then right of exon so we
+        # get two independent sets of primers, ie df is not ordered in this case
+        df = df.sort_values('penalty')
+    
+
         # Plot something
         # data = prepare_mock_data_for_vis()
         #_ = Beauty(data).plot()
@@ -301,13 +322,6 @@ def main(fp_config):
         #img_fp.cleanup()
 
 
-        # TODO: Add mismatches and poistion of mm from 3' end
-        # Display dataframe
-        df = pd.DataFrame(l)
-        df.columns = 'Amplicon,penalty,fwd GC,rev GC,fwd Tm,rev Tm,fwd,rev'.split(',')    
-        # Sort df; in case of qPCR we look first left then right of exon so we
-        # get two independent sets of primers, ie df is not ordered in this case
-        df = df.sort_values('penalty')
         # https://docs.streamlit.io/library/api-reference/data/st.dataframe
         # st.table(df)
         st.text('\n')

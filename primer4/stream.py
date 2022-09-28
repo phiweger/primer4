@@ -87,18 +87,18 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     else:
         raise ValueError('Method is not implemented, exit.')
     
-    results = check_for_multiple_amplicons(primers, fp_genome)
+    results, aln = check_for_multiple_amplicons(primers, fp_genome)
     msg = f'{len(results)}/{len(primers)} primer pairs pass all filters'
     print(log(msg))
     st.write(msg)
-    return results, tmp
+    return results, tmp, aln
 
 
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
 # https://discuss.streamlit.io/t/unhashabletype-cannot-hash-object-of-type-thread-local/1917
 @st.cache(allow_output_mutation=True)
 def housekeeping(fp_config):
-    print('Housekeeping ...')
+    print(log('Housekeeping ...'))
 
     with open(fp_config, 'r') as file:
         params = json.load(file)
@@ -221,13 +221,16 @@ def main(fp_config):
 
                 # Replace transcript version if necessary
                 tx = code[0].split(':')[0]  # case : NM_005585.4:c.1419dup
+                
+                print(log('Sync transcript'))
                 used_tx = sync_tx_with_feature_db(tx, db)
                 if used_tx != tx:
                     st.warning(f'Used trancript {used_tx}')
                     code = [code[0].replace(tx, used_tx)] + code[1:]
 
+                print(log('Primer design'))
                 with st.spinner(text='In progress ...'):
-                    primers, tmp = gimme_some_primers(
+                    primers, tmp, aln = gimme_some_primers(
                         method,
                         code,
                         params['data']['reference'],
@@ -254,7 +257,7 @@ def main(fp_config):
 
     # TODO def prepare_df() in vis
     
-    df = primers_to_df(primers, tmp, order)
+    df = primers_to_df(primers, tmp, order, aln)
     if df.empty:
         st.write('No primers found under the provided constrains. Relax (the constraints)!')
 
@@ -286,7 +289,15 @@ def main(fp_config):
         # https://docs.streamlit.io/library/api-reference/data/st.dataframe
         # st.table(df)
         st.text('\n')
-        st.dataframe(df)
+        st.dataframe(
+            df.style.format(
+                {
+                    'penalty': '{:.2f}',
+                    'fwd GC': '{:.2f}',
+                    'rev GC': '{:.2f}',
+                    'fwd Tm': '{:.2f}',
+                    'rev Tm': '{:.2f}',
+                }))
         # TODO: Style columns?
         # https://stackoverflow.com/questions/41654949/pandas-style-function-to-highlight-specific-columns
         # st.dataframe(df.style.highlight_max(axis=1))

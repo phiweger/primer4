@@ -255,15 +255,20 @@ def prepare_data_for_vis(v, tmp, primers):
         st.stop()
 
 
-def primers_to_df(primers, tmp, qry):
+def primers_to_df(primers, tmp, qry, aln):
+    pd.set_option("display.precision", 2)
+
     l = []
     for pair in primers:
         _, fwd_start, fwd_end = pair.get_genomic_coords(tmp, 'fwd')
         _, rev_start, rev_end = pair.get_genomic_coords(tmp, 'rev')
 
         row = [
+            pair.name,
             pair.penalty,
             pair.get_amplicon_len(),
+            len(pair.data['fwd']['sequence']),
+            len(pair.data['rev']['sequence']),
             pair.get_gc('fwd'),
             pair.get_gc('rev'),
             pair.data['fwd']['Tm'],
@@ -277,6 +282,8 @@ def primers_to_df(primers, tmp, qry):
             rev_start,
             rev_end,
             qry,
+            aln[(pair.name, 'fwd', tmp.feat.chrom, fwd_start, fwd_end)],
+            aln[(pair.name, 'rev', tmp.feat.chrom, rev_start, rev_end)],
         ]
         l.append(row)
 
@@ -287,7 +294,7 @@ def primers_to_df(primers, tmp, qry):
     else:
         # TODO: Add mismatches and poistion of mm from 3' end
         df = pd.DataFrame(l)
-        df.columns = 'penalty,amplicon,fwd GC,rev GC,fwd Tm,rev Tm,fwd,rev,transcript,chrom,fwd start,fwd end,rev start,rev end,query'.split(',')    
+        df.columns = 'name,penalty,amplicon,fwd len,rev len,fwd GC,rev GC,fwd Tm,rev Tm,fwd 5>3,rev 5>3,transcript,chrom,fwd start,fwd end,rev start,rev end,query,aln fwd 5>3,aln rev 5>3'.split(',')    
         # Sort df; in case of qPCR we look first left then right of exon so we
         # get two independent sets of primers, ie df is not ordered in this case
         df = df.sort_values('penalty')

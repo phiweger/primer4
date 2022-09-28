@@ -412,7 +412,7 @@ class PrimerPair():
                 out.write(f'>{self.name}.{i}\n{self.data[i]["sequence"]}\n')
 
     def get_amplicon_len(self):
-        return self.rev.end - self.fwd.start
+        return self.rev.end - self.fwd.start + 1  # + 1 .. accord to SNPcheck
 
     def get_gc(self, direction):
         seq = self.data[direction]['sequence']
@@ -427,7 +427,7 @@ class PrimerPair():
         end = template.invert_relative_pos(self.data[orient]['end'])
         if not start < end:
             start, end = end, start
-        start += 1
+        start += 1  # + 1 bc/ SNPcheck validation 
         return chrom, start, end
 
 

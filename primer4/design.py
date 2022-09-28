@@ -142,6 +142,8 @@ def sort_penalty(primers):
     return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
 
 
+# TODO: expose variables
+# TODO: rethink settings, see TODO list
 def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000):
     '''
     Params mostly from ISPCR from UCSC genome browser:
@@ -151,13 +153,6 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     mx_amplicon_len = 4000
     mx_amplicon_n = 1  # pseudogene and unwanted amplification check
     mn_matches = 15    # 3' matches
-
-    Testing:
-
-    check_for_multiple_amplicons(
-        ('GAGGAAGGCTTTTCGGCATC', 'CTGCGGGAAGCACAGGACAC'),
-        'path/to/primer4/data/GRCh37_latest_genomic.fna',
-        test=True)
     '''
     tmpdir = tempfile.TemporaryDirectory()
     p = tmpdir.name
@@ -165,7 +160,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     for primer in primers:
         primer.save(f'{p}/{primer.name}.fna')
 
-    fields = 'qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore nident btop sstrand'
+    fields = 'qseqid sseqid qlen slen pident length mismatch gapopen qstart qend sstart send evalue bitscore nident btop sstrand'
     steps = [
         f'cat {p}/*.fna > {p}/pseudo.fna',
         f'blastn -dust no -word_size {word_size} -evalue {mx_evalue} -outfmt "6 {fields}" -query {p}/pseudo.fna -db {fp_genome} -num_threads {n_cpus} -out {p}/result'
@@ -176,7 +171,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     Examples: 7AG39, 7A-39, 6-G-A41
     '''
     command = '; '.join(steps)
-    print(log('Searching for alternative binding sites'))
+    print(log('Search alternative binding sites'))
     log_blast = subprocess.run(command, capture_output=True, shell=True)
     # print(log_blast)
 
@@ -186,27 +181,68 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
 
     # print(df)
     drop_these = []
+    aln_profiles = []
     for ix, i in df.iterrows():
         try:
             # Try to parse the number of 3' matches (get the last number)
             # https://stackoverflow.com/questions/5320525/regular-expression-to-match-last-number-in-a-string
             # print(i['btop'])
+            profile, split = parse_blast_btop(i['btop'], debug=True)
+            aln_profiles.append(profile)
+            matches_3prime = split[-1]
+            # matches_3prime = int(re.match(r'.*?(\d+)(?!.*\d)', i['btop']).group(1))
 
-            matches_3prime = int(re.match(r'.*?(\d+)(?!.*\d)', i['btop']).group(1))
-            if matches_3prime < mn_matches:
+            # if matches_3prime < mn_matches:
+            if (matches_3prime < mn_matches) or (len(profile) != i['qlen']):
+                # TODO: we discard too many? orientation blast/ primer ok?
+                # TODO: minlen not respected? (size_min) -- or is this only aln
+                # len?
+                # length in btop is full aln or just aligned fraction?
+
                 drop_these.append(ix)
+            # Debug:
+            # else:
+            #     print(
+            #         matches_3prime,
+            #         i['length'],
+            #         len(parse_blast_btop(i['btop'])),
+            #         i['sstrand'],
+            #         i['btop'],
+            #         parse_blast_btop(i['btop']))
         except ValueError:
             # Gap or mismatch in last position, so cannot cast string to int
             # invalid literal for int() with base 10: ...
             continue
 
+    df['aln'] = aln_profiles
     # print(f'Dataframe before: {len(df)}')
     df.drop(df.index[drop_these], inplace=True)
     # print(f'Dataframe after: {len(df)}')
-    
+    '''
+    qseqid        sseqid  pident  length  ...  nident  btop  sstrand                   aln
+    0    139b465b.fwd  NC_000017.10   100.0      20  ...      20    20     plus  ....................
+    1    139b465b.fwd  NC_000017.10   100.0      15  ...      15    15     plus       ...............
+    '''
+    sub = df[['qseqid', 'sseqid', 'sstart', 'send', 'aln']].drop_duplicates()
+    lu = {}
+    for i in sub.itertuples():
+        name, orient = i.qseqid.split('.')
+        start, end = i.sstart, i.send
+        if start > end:
+            start, end = end, start
+        lu[(name, orient, i.sseqid, start, end)] = i.aln
+
+
+    # lu = {tuple(k.split('.')): v for k, v in zip(sub.qseqid, sub.aln)}  
+    # Lookup for alignment string:
+    # ('139b465b', 'rev'): '...||................'
+
+    #import pdb
+    #pdb.set_trace()
+
     unique = set([i.split('.')[0] for i in df['qseqid']])
     
-    print(log('Excluding non-unique sites'))
+    print(log('Exclude non-unique sites'))
     cnt = defaultdict(int)
     for u in unique:
 
@@ -266,12 +302,12 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
         if cnt[primer.name] <= mx_amplicon_n:
             results.append(primer)
         else:
-            print(f'Primer pair {primer.name} does not pass, amplicons calculated: {cnt[primer.name]}')
+            print(f'Primer pair {primer.name} does not pass, likely too unspecific (> {mx_blast_hits} Blast hits)')
     # print(results)
-    return results
+    return results, lu
 
 
-def parse_blast_btop(s):
+def parse_blast_btop(s, debug=False):
     '''
     Blast BTOP string .. think sam CIGAR string, but more flexible
 
@@ -291,21 +327,43 @@ def parse_blast_btop(s):
 
     Usage:
 
-    parse_blast_btop('3GA-13')
+    parse_blast_btop('3GCA-13')
     # '...||.............'
+
+    Comments:
+
+    The BTOP string will only cover __the aligned fraction__ of the primer! This
+    means we actually need to check that the length of the BTOP == len of primer
+    or else we miss "soft clippings".
+
+    Example:
+
+    Score = 27.9 bits (14), Expect = 1.6
+    Identities = 14/14 (100%)
+    Strand = Plus / Minus
+                          
+    Query: 8        gactgactttctgc 21
+                    ||||||||||||||
+    Sbjct: 17227357 gactgactttctgc 17227344
+
+    BTOP is in 5' - 3' direction but misses the "ends", which we assume
+    non-binding (soft-clipping). See notes.
     '''
-    split = re.findall(r'[A-Za-z]+|\d+|-', s)
+    split = re.findall(r'[A-Z][A-Z]|\d+|-[A-Z]|[A-Z]-', s)
     # '3GA-13' > ['3', 'GA', '-', '13']
+
+    cast_split = []
     result = ''
+
     for i in split:
         try:
             result += int(i) * '.'
+            cast_split.append(int(i))
         except ValueError:  # invalid literal for int()
             result += '|'
-
-    return result
-
-
-
-
+            cast_split.append(i)
+    if debug:
+        return result, cast_split
+    else:
+        return result
 

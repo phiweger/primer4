@@ -65,7 +65,7 @@ pytest --config config.json
 ## Run
 
 ```bash
-streamlit run primer4/stream.py -- -c config.json
+streamlit run primer4/stream.py -- --config config.json
 # Args after "--":
 # https://discuss.streamlit.io/t/command-line-arguments/386/4
 ```

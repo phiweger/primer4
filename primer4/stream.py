@@ -97,11 +97,8 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
 # https://discuss.streamlit.io/t/unhashabletype-cannot-hash-object-of-type-thread-local/1917
 @st.cache(allow_output_mutation=True)
-def housekeeping(fp_config):
+def housekeeping(params):
     print(log('Housekeeping ...'))
-
-    with open(fp_config, 'r') as file:
-        params = json.load(file)
 
     fp_genome = params['data']['reference']
     fp_coords = params['data']['coordinates']
@@ -121,7 +118,7 @@ def housekeeping(fp_config):
     print(log('Loading transcript coordinate mappings'))
     hdp = JSONDataProvider([fp_coords])
 
-    return genome, hdp, params, vardbs
+    return genome, hdp, vardbs
 
 
 # ------------------------------------------------------------------------------
@@ -137,13 +134,8 @@ args = parser.parse_args()
 def main(fp_config):
     st.set_page_config(layout='centered')
 
-    genome, hdp, params, vardbs = housekeeping(fp_config)
-
-    # Why is load annotation data here, not in housekeeping fn?
-    # Cannot be opened by housekeeping bc/ second iteration will cause:
-    # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
-    db = gffutils.FeatureDB(params['data']['annotation'], keep_order=True)
-
+    with open(fp_config, 'r') as file:
+        params = json.load(file)
     # TODO:
     # https://github.com/phiweger/primer4/issues/2
     # Why does it trigger reload in housekeeping fn but not here?
@@ -159,6 +151,13 @@ def main(fp_config):
         # If env var is not set, hgvs library will default to API usage, ie
         # internet connection is needed.
         print(log('Will use API to obtain sequence data'))
+
+    genome, hdp, vardbs = housekeeping(params)
+
+    # Why is load annotation data here, not in housekeeping fn?
+    # Cannot be opened by housekeeping bc/ second iteration will cause:
+    # sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 123145481936896 and this is thread id 123145532841984.
+    db = gffutils.FeatureDB(params['data']['annotation'], keep_order=True)
 
 
     st.markdown(
@@ -193,7 +192,7 @@ def main(fp_config):
         # streamlit.errors.StreamlitAPIException: With forms, callbacks can 
         # only be defined on the `st.form_submit_button`. Defining callbacks on 
         # other widgets inside a form is not allowed.
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = st.columns([1, 1.5, 1.5, 1.5])
         with col1:
             method = st.selectbox('Method', ('Sanger', 'qPCR', 'mRNA'))
             method = method.lower()
@@ -202,7 +201,7 @@ def main(fp_config):
         with col3:
             amplicon_len_max = st.number_input('max length [bp]', value=600)
         with col4:
-            max_variation = st.number_input('Allele frequency [%]', min_value=0., max_value=100., value=0., step=0.01) / 100
+            max_variation = st.number_input('Allele frequency [%]', min_value=0., max_value=100., value=0., step=0.0001, format='%.4f') / 100
     
         # Every form must have a submit button.
         submitted = st.form_submit_button(
@@ -229,7 +228,7 @@ def main(fp_config):
                     code = [code[0].replace(tx, used_tx)] + code[1:]
 
                 print(log('Primer design'))
-                with st.spinner(text='In progress ...'):
+                with st.spinner(text='Design in progress ...'):
                     primers, tmp, aln = gimme_some_primers(
                         method,
                         code,
@@ -240,7 +239,6 @@ def main(fp_config):
                         vardbs,
                         params,
                         max_variation)
-                st.write('Done.')
 
         else:
             return None
@@ -269,35 +267,37 @@ def main(fp_config):
         # "image" is generated like so:
         # from PIL import Image
         # image = Image.open(fp)
-        image = prepare_data_for_vis(tmp.data, tmp, primers)
-
-        # Center image
-        col1, col2, col3 = st.columns([1, 1000, 1])
-        st.text('\n')
-        with col1:
-            st.write('')
-        with col2:
-            st.image(image)
-        with col3:
-            st.write('')    
-        #from PIL import Image
-        #image = Image.open(img_fp)
-        # st.image(image)
-        #img_fp.cleanup()
-
-
-        # https://docs.streamlit.io/library/api-reference/data/st.dataframe
-        # st.table(df)
-        st.text('\n')
-        st.dataframe(
-            df.style.format(
-                {
-                    'penalty': '{:.2f}',
-                    'fwd GC': '{:.2f}',
-                    'rev GC': '{:.2f}',
-                    'fwd Tm': '{:.2f}',
-                    'rev Tm': '{:.2f}',
-                }))
+        with st.spinner(text='Preparing results ...'):
+            image = prepare_data_for_vis(tmp.data, tmp, primers)
+    
+            # Center image
+            col1, col2, col3 = st.columns([1, 1000, 1])
+            st.text('\n')
+            with col1:
+                st.write('')
+            with col2:
+                st.image(image)
+            with col3:
+                st.write('')    
+            #from PIL import Image
+            #image = Image.open(img_fp)
+            # st.image(image)
+            #img_fp.cleanup()
+    
+    
+            # https://docs.streamlit.io/library/api-reference/data/st.dataframe
+            # st.table(df)
+            st.text('\n')
+            st.dataframe(
+                df.style.format(
+                    {
+                        'penalty': '{:.2f}',
+                        'fwd GC': '{:.2f}',
+                        'rev GC': '{:.2f}',
+                        'fwd Tm': '{:.2f}',
+                        'rev Tm': '{:.2f}',
+                    }))
+        
         # TODO: Style columns?
         # https://stackoverflow.com/questions/41654949/pandas-style-function-to-highlight-specific-columns
         # st.dataframe(df.style.highlight_max(axis=1))

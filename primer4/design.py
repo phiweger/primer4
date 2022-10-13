@@ -178,7 +178,9 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     result = Path(p) / 'result'
     df = pd.read_csv(result, sep='\t', names=fields.split(' '))
     df = df.astype({'btop': str})
-
+    # print(df.iloc[0])
+    # print(f'Before: {len(set([i.split(".")[0] for i in df["qseqid"]]))}')
+    # print(len(df))
     # print(df)
     drop_these = []
     aln_profiles = []
@@ -192,23 +194,40 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
             matches_3prime = split[-1]
             # matches_3prime = int(re.match(r'.*?(\d+)(?!.*\d)', i['btop']).group(1))
 
-            # if matches_3prime < mn_matches:
-            if (matches_3prime < mn_matches) or (len(profile) != i['qlen']):
-                # TODO: we discard too many? orientation blast/ primer ok?
-                # TODO: minlen not respected? (size_min) -- or is this only aln
-                # len?
-                # length in btop is full aln or just aligned fraction?
+            # Is the 3' end of the primer aligned?
+            # qend .. End of alignment in query
+            # https://www.metagenomics.wiki/tools/blast/blastn-output-format-6
+            cond1 = i['qend'] != i['qlen']
 
+            # Are the last <mn_matches> bases matches?
+            cond2 = matches_3prime < mn_matches
+
+            # (len(profile) != i['qlen']) .. no softclipping of ends allowed
+            #if (matches_3prime < mn_matches) or (len(profile) != i['qlen']):
+            
+            # 4 debugging
+            log_profiles = [
+                    matches_3prime,
+                    i['qlen'],
+                    i['qend'],
+                    i['length'],
+                    len(split),
+                    i['sstrand'],
+                    i['btop'],
+                    cond1,
+                    cond2,
+                    profile]
+
+            if cond1 or cond2:
+                # TODO: we discard too many? orientation blast/ primer ok?
+                # print(log_profiles)
+                
+                # Primers which bind suboptimally everywhere are thus removed
                 drop_these.append(ix)
-            # Debug:
+                
             # else:
-            #     print(
-            #         matches_3prime,
-            #         i['length'],
-            #         len(parse_blast_btop(i['btop'])),
-            #         i['sstrand'],
-            #         i['btop'],
-            #         parse_blast_btop(i['btop']))
+            #     print(log_profiles)
+
         except ValueError:
             # Gap or mismatch in last position, so cannot cast string to int
             # invalid literal for int() with base 10: ...
@@ -217,7 +236,10 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     df['aln'] = aln_profiles
     # print(f'Dataframe before: {len(df)}')
     df.drop(df.index[drop_these], inplace=True)
+    # print(df)
     # print(f'Dataframe after: {len(df)}')
+    # print(f'Remaining: {len(set([i.split(".")[0] for i in df["qseqid"]]))}')
+    # print(len(df))
     '''
     qseqid        sseqid  pident  length  ...  nident  btop  sstrand                   aln
     0    139b465b.fwd  NC_000017.10   100.0      20  ...      20    20     plus  ....................

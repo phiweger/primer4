@@ -41,6 +41,7 @@ def design_primers(masked, constraints, params, previous=[]):
     # print(only_here)
     # pdb.set_trace()
 
+    # Mask the position of the primer pair from the previous cycle
     if previous:
         x = previous[-1]
         start, end = x.fwd.start, x.fwd.end
@@ -327,6 +328,8 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
             print(f'Primer pair {primer.name} does not pass, likely too unspecific (> {mx_blast_hits} Blast hits)')
     # print(results)
     return results, lu
+    # lu looks like this:
+    #  ... ('9434526f', 'rev', 'NT_113943.1', 41544, 41558): '..........|.|..',
 
 
 def parse_blast_btop(s, debug=False):

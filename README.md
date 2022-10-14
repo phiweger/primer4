@@ -114,7 +114,7 @@ makeblastdb -in GRCh37_latest_genomic.fna -dbtype nucl
 # 2. Variants and index:
 # - GRCh37_latest_dbSNP_all.vcf.gz
 # - GRCh37_latest_dbSNP_all.vcf.gz.tbi
-
+# dbSNP_BUILD_ID=155
 wget https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh37_latest/refseq_identifiers/GRCh37_latest_dbSNP_all.vcf.gz
 gunip GRCh37_latest_dbSNP_all.vcf.gz
 bgzip -c GRCh37_latest_dbSNP_all.vcf > GRCh37_latest_dbSNP_all.vcf.gz

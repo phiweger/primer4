@@ -59,15 +59,26 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     tmp = Template(v, db)
     
     # Annotate templete
-    tmp.load_variation_freqs_(vardbs)
+    tmp.load_variation_freqs_(vardbs, params)
     tmp.load_variation_(max_variation)
     tmp.get_sequence_(genome)
 
     # Mask and get primers
     if method == 'sanger':
-        masked = mask_sequence(tmp.sequence, tmp.mask)
+        
         constraints = tmp.apply(method, db, params)
-        primers = [p for p in next(design_primers(masked, constraints, params, []))]
+        # We do two runs: Design primers w/o any consideration for SNVs, and
+        # then design another set with such considerations. Then remove those
+        # that are not suitable.
+        masked = mask_sequence(tmp.sequence, tmp.mask)
+        primers = [p for p in next(
+            design_primers(masked, constraints, params, []))]
+        
+        if params['snv_filter']['allow_snvs']:
+            nomask = mask_sequence(tmp.sequence, set())
+            primers_nomask = [p for p in next(
+                design_primers(nomask, constraints, params, []))]
+            primers = primers + primers_nomask
 
     elif method == 'qpcr':
         masked = mask_sequence(tmp.sequence, tmp.mask)
@@ -88,10 +99,27 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         raise ValueError('Method is not implemented, exit.')
     
     results, aln = check_for_multiple_amplicons(primers, fp_genome)
+    # Until now, we have only checked the alignment of primers to the
+    # reference genome -- any "variants" are really mapping mismatches.
+    # In the case of designing primers while ignoring SNVs, we need to
+    # add those SNVs back in.
+
+    #import pdb
+    #pdb.set_trace()
     msg = f'{len(results)}/{len(primers)} primer pairs pass all filters'
     print(log(msg))
     st.write(msg)
     return results, tmp, aln
+
+
+# TODO
+def project_mask_onto_primers(primers, aln, tmp):
+    for p in primers:
+        for x in ['fwd', 'rev']:
+            start = p.data[x]['start']
+            end = p.data[x]['end']
+            yield ''.join(
+                ['|' if i in tmp.mask else '.' for i in range(start, end+1)])
 
 
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
@@ -192,17 +220,28 @@ def main(fp_config):
         # streamlit.errors.StreamlitAPIException: With forms, callbacks can 
         # only be defined on the `st.form_submit_button`. Defining callbacks on 
         # other widgets inside a form is not allowed.
-        col1, col2, col3, col4 = st.columns([1, 1.5, 1.5, 1.5])
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
         with col1:
             method = st.selectbox('Method', ('Sanger', 'qPCR', 'mRNA'))
+            # on_change=foo
+            # StreamlitAPIException: With forms, callbacks can only be defined 
+            # on the st.form_submit_button. Defining callbacks on other widgets 
+            # inside a form is not allowed.
             method = method.lower()
+
         with col2:
-            amplicon_len_min = st.number_input('min length [bp]', value=250)
+            amplicon_len_min = st.number_input('min length [bp]', value=350)
         with col3:
             amplicon_len_max = st.number_input('max length [bp]', value=600)
         with col4:
-            max_variation = st.number_input('Allele frequency [%]', min_value=0., max_value=100., value=0., step=0.0001, format='%.4f') / 100
-    
+            max_variation = st.number_input('Allele frequency [%]', min_value=0., max_value=100., value=0., step=0.01, format='%.2f') / 100
+        
+        # Row 2
+        # https://discuss.streamlit.io/t/how-to-have-2-rows-of-columns-using-st-beta-columns/11699/2
+        with col1:
+            mock = st.number_input('foo', value=1)
+
+
         # Every form must have a submit button.
         submitted = st.form_submit_button(
             'Run',

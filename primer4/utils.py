@@ -566,7 +566,7 @@ def parse_snpdb(line):
         return max(l)
 
 
-def load_variation_freqs(feat, databases):
+def load_variation_freqs(feat, databases, params):
     '''
     feat .. gffutils feature type
     
@@ -580,6 +580,7 @@ def load_variation_freqs(feat, databases):
     ...
     '''
     freqs = defaultdict(list)
+    skip = 0
 
     for name, db in databases.items():
         variants = VariantFile(db)
@@ -593,8 +594,14 @@ def load_variation_freqs(feat, databases):
         for i in vv:
             # .info.get(...) raises ValueError: Invalid header if not there
             info = dict(i.info)
+            # dict_keys(['RS', 'dbSNPBuildID', 'SSR', 'GENEINFO', 'VC', 'R5', 'GNO', 'FREQ'])
             # pos = i.pos - feat.start - 1  # TODO: -1 here?
             pos = i.pos - feat.start
+
+            assert i.stop > i.start
+            delta = i.stop - i.start
+            if delta > params['snv_filter']['max_snv_len']:
+                skip += 1
 
             # TODO: missing "max_variation"
             if name == 'dbSNP':
@@ -603,14 +610,17 @@ def load_variation_freqs(feat, databases):
                     # For some reason some SNVs in the databases have 0 freq.
                     if x != 0:
                         freqs[pos].append((name, x))
-                    # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', 7.96 ...
+                        # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', ...
 
                 #if info.get('COMMON'):
                 #    # print(name, x)
                 #    mask.add(pos)
 
             elif name == '1000Genomes':
+                #import pdb
+                #pdb.set_trace()
                 x = float(info['AF'][0])
+                # {'AC': (1,), 'AF': (0.000199681002413854,), 'AN': 5008, 'NS': 2504, 'DP': 10039, 'EAS_AF': (0.0,), 'AMR_AF': (0.0,), 'AFR_AF': (0.0007999999797903001,), 'EUR_AF': (0.0,), 'SAS_AF': (0.0,), 'AA': 'A|||', 'VT': ('SNP',)}
                 if x != 0:
                     freqs[pos].append((name, x))
             
@@ -621,8 +631,14 @@ def load_variation_freqs(feat, databases):
 
             else:
                 print(f'"{name}" is not a valid variant database')
+    
 
-    return freqs
+    before = len(freqs)
+    filt = {k: v for k, v in freqs.items() if len(v) >= params['snv_filter']['min_databases']}
+    after = len(filt)
+    print(log(f'Include {after} SNVs, {skip} SNVs too large, removed {before-after} singletons'))
+
+    return freqs, filt
 
 
 def mask_sequence(seq, var, mask='N', unmasked=''):

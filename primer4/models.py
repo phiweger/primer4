@@ -287,14 +287,15 @@ class Template():
         # Apply fn
         return self.methods[fn](self, feature_db, params, *args, **kwargs)
 
-    def load_variation_freqs_(self, databases):
-        self.mask_freqs = load_variation_freqs(self.feat, databases)
+    def load_variation_freqs_(self, databases, params):
+        self.mask_freqs, self.mask_freqs_filtered = load_variation_freqs(
+            self.feat, databases, params)
         return None
 
     def load_variation_(self, max_variation=0.01):
-        assert self.mask_freqs, 'Please load SNV frequencies first'
+        assert self.mask_freqs_filtered, 'Please load SNV frequencies first'
         mask = set()
-        for rel_pos, snvs in self.mask_freqs.items():
+        for rel_pos, snvs in self.mask_freqs_filtered.items():
             for db, freq in snvs:
                 if freq > max_variation:
                     mask.add(rel_pos)

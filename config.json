@@ -10,13 +10,18 @@
             "ESP": "data/ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz"
         }
     },
+    "snv_filter": {
+        "allow_snvs": false,
+        "min_databases": 2,
+        "max_snv_len": 10,
+    },
     "n_return": 10,
     "burnin_sanger": 30,
     "binding_site": 50,
     "size_min": 18,
     "size_opt": 20,
     "size_max": 27,
-    "size_range_PCR": [250, 600],
+    "size_range_PCR": [350, 600],
     "size_range_qPCR": [80, 150],
     "size_range_mRNA": [80, 600],
     "tm_min": 57.0,

@@ -188,6 +188,18 @@ def prepare_data_for_vis(v, tmp, primers):
     with open(tmp_fp / 'variants.bedgraph', 'w+') as out:
         out.write(result)
 
+    result = ''
+    for rel_pos, snvs in tmp.mask_freqs_filtered.items():
+        gen_pos = tmp.invert_relative_pos(rel_pos)
+        for db, freq in snvs:
+            # TODO minmax scalar
+            freq = np.abs(np.log(freq))
+            #freq = 1
+            result += f'{tmp.feat.chrom}\t{gen_pos}\t{gen_pos+1}\t{freq}\n'
+    
+    with open(tmp_fp / 'filtered.bedgraph', 'w+') as out:
+        out.write(result)
+
     # Mask
     result = ''
     for rel_pos in tmp.mask:
@@ -211,6 +223,7 @@ def prepare_data_for_vis(v, tmp, primers):
     content_tracks_spec = {
         'query_fp': str(tmp_fp / 'query.bed'),
         'variants_fp': str(tmp_fp / 'variants.bedgraph'),
+        'filtered_fp': str(tmp_fp / 'filtered.bedgraph'),
         'gc_fp': str(tmp_fp / 'gc.bedgraph'),
         'mask_fp': str(tmp_fp / 'mask.bedgraph'),
         'primers_fp': str(tmp_fp / 'primers.bed'),

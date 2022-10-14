@@ -92,9 +92,9 @@ def design_primers(masked, constraints, params, previous=[]):
     
     try:
         best = PrimerPair(parse_designs(designs, n=1)[0])
-        print(best)
+        #print(best)
         from collections import Counter
-        print('Ns:', Counter(masked)['N'])
+        #print('Ns:', Counter(masked)['N'])
 
         if not constraints.get('snvs'):
             raise ValueError('No constraints')
@@ -102,14 +102,12 @@ def design_primers(masked, constraints, params, previous=[]):
         d = project_mask_onto_primers(best, constraints['snvs'])
         valid_fwd, dots_fwd, pos_fwd = d['fwd']
         valid_rev, dots_rev, pos_rev = d['rev']
-        print(valid_fwd, dots_fwd, pos_fwd, valid_rev, dots_rev, pos_rev)
+        #print(valid_fwd, dots_fwd, pos_fwd, valid_rev, dots_rev, pos_rev)
         
         if not all([valid_fwd, valid_rev]):
             # We detected an SNV in a primer.
-
             masked = ''.join(
                 ['N' if ix in set(pos_fwd + pos_rev) else i for ix, i in enumerate(masked)])
-            
         else:
             previous.append(best)
 
@@ -118,27 +116,6 @@ def design_primers(masked, constraints, params, previous=[]):
     except KeyError:
         # No primers found
         yield previous
-    
-
-
-    #     # Has the search been performed w/o considering SNVs first?
-    #     if constraints['snvs']:
-    #         d = project_mask_onto_primers(best, constraints['snvs'])
-    #         valid_fwd, dots_fwd = d['fwd']
-    #         valid_rev, dots_rev = d['fwd']
-    #         print(valid_fwd, dots_fwd, valid_rev, dots_rev)
-    #         if not all([valid_fwd, valid_rev]):
-    #             # Mask the SNVs only and continue search
-    #             masked = ''.join(
-    #                 ['N' if ix in constraints['snvs'] else i for ix, i in enumerate(masked)])
-    #             yield from design_primers(masked, constraints, params, previous)
-
-    #     previous.append(best)
-    #     yield from design_primers(masked, constraints, params, previous)
-
-    # except KeyError:
-    #     # No primers found
-    #     yield previous
 
 
 def parse_designs(designs, n):
@@ -173,15 +150,15 @@ def parse_designs(designs, n):
     return primers
 
 
-# def sort_penalty(primers):
-#     '''
-#     It seems primer3 already sorts primers from best to worst, but just to
-#     make sure.
-#     '''
-#     loss = {}
-#     for k, v in primers.items():
-#         loss[k] = v['penalty']
-#     return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
+def sort_by_penalty(primers):
+    '''
+    It seems primer3 already sorts primers from best to worst, but just to
+    make sure.
+    '''
+    loss = {}
+    for p in primers:
+        loss[p.name] = (p.penalty, p)
+    return [v[1] for k, v in sorted(loss.items(), key=lambda x: x[1][0])]
 
 
 # TODO: expose variables
@@ -213,7 +190,7 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     Examples: 7AG39, 7A-39, 6-G-A41
     '''
     command = '; '.join(steps)
-    print(log('Search alternative binding sites'))
+    print(log(f'Search alternative binding sites for {len(primers)} pair(s)'))
     log_blast = subprocess.run(command, capture_output=True, shell=True)
     # print(log_blast)
 
@@ -454,7 +431,7 @@ def project_mask_onto_primers(primers, mask, mn_3prime_matches=15):
     for x in ['fwd', 'rev']:
         start = primers.data[x]['start']
         end = primers.data[x]['end']
-        print(x, start, end)
+        #print(x, start, end)
         
         z = [('|', i) if i in mask else ('.', i) for i in range(start, end)]
         # import pdb; pdb.set_trace()

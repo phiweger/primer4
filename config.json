@@ -14,6 +14,9 @@
         "min_databases": 2,
         "max_snv_len": 10
     },
+    "primers": {
+        "max_num_candidates": 10
+    },
     "n_return": 10,
     "burnin_sanger": 30,
     "binding_site": 50,

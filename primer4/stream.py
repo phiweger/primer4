@@ -20,7 +20,11 @@ from pyfaidx import Fasta
 import streamlit as st
 
 from primer4.models import Variant, ExonDelta, SingleExon, ExonSpread, Template
-from primer4.design import design_primers, check_for_multiple_amplicons
+from primer4.design import (
+    design_primers,
+    check_for_multiple_amplicons,
+    sort_by_penalty,
+    )
 from primer4.hacks import download_button
 from primer4.utils import (
     log,
@@ -82,31 +86,31 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         # that are not suitable.
         masked = mask_sequence(tmp.sequence, tmp.mask)
         
-        print('run1')
+        print(log('Run: SNVs first'))
         constraints['snvs'] = tmp.mask
         primers = [p for p in next(
             design_primers(masked, constraints, params, []))]
-        print(f'Found {len(primers)} primers')
+        print(log(f'Found {len(primers)} primers'))
         #print(constraints)
         
-
         if blind_search:
             nomask = mask_sequence(tmp.sequence, set())
             #constraints['snvs'] = tmp.mask
             #import pdb
             #pdb.set_trace()
-            print('run2')
+            print(log('Run: Design first'))
             primers_nomask = [p for p in next(
                 design_primers(nomask, constraints, params, []))]
             # print(constraints)
-            print(f'Found {len(primers_nomask)} more primers')
+            print(log(f'Found {len(primers_nomask)} more primers'))
             primers = primers + primers_nomask
-            print(f'Found {len(primers)} in total')
+            print(log(f'Found {len(primers)} in total'))
 
 
     elif method == 'qpcr':
         masked = mask_sequence(tmp.sequence, tmp.mask)
         
+        print(log('Run: SNVs first'))
         primers = []
         all_constraints = tmp.apply('qpcr', db, params)
         for constraints in all_constraints:
@@ -114,7 +118,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
             constraints['snvs'] = tmp.mask
             x = [p for p in next(design_primers(masked, constraints, params, []))]
             primers.extend(x)
-        print(f'Found {len(primers)}')
+        print(log(f'Found {len(primers)}'))
 
 
         if blind_search:
@@ -122,7 +126,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
             #constraints['snvs'] = tmp.mask
             #import pdb
             #pdb.set_trace()
-            print('run2')
+            print(log('Run: Design first'))
             
             # print(constraints)
             #print(f'Found {len(primers_nomask)} more primers')
@@ -144,6 +148,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     else:
         raise ValueError('Method is not implemented, exit.')
     
+    primers = sort_by_penalty(primers)[:params['primers']['max_num_candidates']]
     results, aln = check_for_multiple_amplicons(primers, fp_genome)
     # Until now, we have only checked the alignment of primers to the
     # reference genome -- any "variants" are really mapping mismatches.
@@ -275,7 +280,7 @@ def main(fp_config):
         # Row 2
         # https://discuss.streamlit.io/t/how-to-have-2-rows-of-columns-using-st-beta-columns/11699/2
         with col1:
-            blind_search = st.checkbox('Blind search', value=True)
+            blind_search = st.checkbox('Allow SNVs', value=True)
 
         # Every form must have a submit button.
         submitted = st.form_submit_button(

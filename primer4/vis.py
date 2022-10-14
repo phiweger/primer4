@@ -15,6 +15,7 @@ import streamlit as st
 
 from primer4.models import Variant
 from primer4.utils import convert_chrom
+from primer4.design import project_mask_onto_primers
 
 
 def prepare_mock_data_for_vis():
@@ -276,6 +277,13 @@ def primers_to_df(primers, tmp, qry, aln):
         _, fwd_start, fwd_end = pair.get_genomic_coords(tmp, 'fwd')
         _, rev_start, rev_end = pair.get_genomic_coords(tmp, 'rev')
 
+        # TODO: I already did this in the recursion that designs the primers;
+        # however, for now I accept the slight code duplication. Could add
+        # this to the PrimerPair object or keep here so it is explicit.
+        d = project_mask_onto_primers(pair, tmp.mask)
+        valid_fwd, dots_fwd, pos_fwd = d['fwd']
+        valid_rev, dots_rev, pos_rev = d['rev']
+
         row = [
             pair.name,
             pair.penalty,
@@ -295,8 +303,10 @@ def primers_to_df(primers, tmp, qry, aln):
             rev_start,
             rev_end,
             qry,
-            aln[(pair.name, 'fwd', tmp.feat.chrom, fwd_start, fwd_end)],
-            aln[(pair.name, 'rev', tmp.feat.chrom, rev_start, rev_end)],
+            dots_fwd,
+            dots_rev,
+            #aln[(pair.name, 'fwd', tmp.feat.chrom, fwd_start, fwd_end)],
+            #aln[(pair.name, 'rev', tmp.feat.chrom, rev_start, rev_end)],
         ]
         l.append(row)
 

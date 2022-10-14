@@ -413,7 +413,7 @@ class PrimerPair():
                 out.write(f'>{self.name}.{i}\n{self.data[i]["sequence"]}\n')
 
     def get_amplicon_len(self):
-        return self.rev.end - self.fwd.start + 1  # + 1 .. accord to SNPcheck
+        return self.rev.end - self.fwd.start
 
     def get_gc(self, direction):
         seq = self.data[direction]['sequence']

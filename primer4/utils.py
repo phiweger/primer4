@@ -642,7 +642,6 @@ def load_variation_freqs(feat, databases, params):
 
 
 def mask_sequence(seq, var, mask='N', unmasked=''):
-    
     if unmasked:
         masked = ''.join([mask if ix in var else unmasked for ix, i in enumerate(seq)])
     else:

@@ -5,6 +5,7 @@ pytest --config config.json
 
 
 import argparse
+# from collections import Counter
 import json
 from pathlib import Path
 import pdb
@@ -32,13 +33,18 @@ from primer4.vis import prepare_data_for_vis, primers_to_df
 from primer4.warnings import warn
 
 
-def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params, max_variation):
+def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params, max_variation, blind_search):
     '''
     gimme_some_primers('sanger', 'NM_000546.6:c.215C>G', ...)
     gimme_some_primers('qpcr', ('NM_001145408.2', 6), ...)
     gimme_some_primers('mrna', ('NM_000546.6', 6, 7), ...)
     '''
     if method == 'sanger':
+
+        # This would otherwise fail later on HGVS parsing error
+        if len(code) > 1:
+            raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
+        
         try:
             v = Variant(code[0], hdp, db)
         # TODO: Catch this error in the main fn so we don't have st.x() fn
@@ -48,9 +54,13 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
             st.stop()
 
     elif method == 'qpcr':
+        if len(code) != 2:
+            raise ValueError(f'Wrong query syntax, should be like "NM_000546.6::4"')
         v = SingleExon(code[0], int(code[1]))
     
     elif method == 'mrna':
+        if len(code) != 3:
+            raise ValueError(f'Wrong query syntax, should be like "NM_000546.6::5::6"')   
         v = ExonSpread(code[0], int(code[1]), int(code[2]))
     
     else:
@@ -71,23 +81,59 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
         # then design another set with such considerations. Then remove those
         # that are not suitable.
         masked = mask_sequence(tmp.sequence, tmp.mask)
+        
+        print('run1')
+        constraints['snvs'] = tmp.mask
         primers = [p for p in next(
             design_primers(masked, constraints, params, []))]
+        print(f'Found {len(primers)} primers')
+        #print(constraints)
         
-        if params['snv_filter']['allow_snvs']:
+
+        if blind_search:
             nomask = mask_sequence(tmp.sequence, set())
+            #constraints['snvs'] = tmp.mask
+            #import pdb
+            #pdb.set_trace()
+            print('run2')
             primers_nomask = [p for p in next(
                 design_primers(nomask, constraints, params, []))]
+            # print(constraints)
+            print(f'Found {len(primers_nomask)} more primers')
             primers = primers + primers_nomask
+            print(f'Found {len(primers)} in total')
+
 
     elif method == 'qpcr':
         masked = mask_sequence(tmp.sequence, tmp.mask)
         
         primers = []
-        for constraints in tmp.apply('qpcr', db, params):
+        all_constraints = tmp.apply('qpcr', db, params)
+        for constraints in all_constraints:
             # print(constraints)
+            constraints['snvs'] = tmp.mask
             x = [p for p in next(design_primers(masked, constraints, params, []))]
             primers.extend(x)
+        print(f'Found {len(primers)}')
+
+
+        if blind_search:
+            nomask = mask_sequence(tmp.sequence, set())
+            #constraints['snvs'] = tmp.mask
+            #import pdb
+            #pdb.set_trace()
+            print('run2')
+            
+            # print(constraints)
+            #print(f'Found {len(primers_nomask)} more primers')
+            
+            
+            for constraints in all_constraints:
+                primers_nomask = [p for p in next(
+                    design_primers(nomask, constraints, params, []))]
+                primers.extend(primers_nomask)
+            print(f'Found {len(primers)} in total')
+
 
     elif method == 'mrna':
         tmp.mrna = reconstruct_mrna(tmp.feat, db, genome, vardbs)
@@ -110,16 +156,6 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     print(log(msg))
     st.write(msg)
     return results, tmp, aln
-
-
-# TODO
-def project_mask_onto_primers(primers, aln, tmp):
-    for p in primers:
-        for x in ['fwd', 'rev']:
-            start = p.data[x]['start']
-            end = p.data[x]['end']
-            yield ''.join(
-                ['|' if i in tmp.mask else '.' for i in range(start, end+1)])
 
 
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
@@ -239,8 +275,7 @@ def main(fp_config):
         # Row 2
         # https://discuss.streamlit.io/t/how-to-have-2-rows-of-columns-using-st-beta-columns/11699/2
         with col1:
-            mock = st.number_input('foo', value=1)
-
+            blind_search = st.checkbox('Blind search', value=True)
 
         # Every form must have a submit button.
         submitted = st.form_submit_button(
@@ -253,9 +288,6 @@ def main(fp_config):
                 return None
             else:
                 code = order.split('::')  # case: NM_000546.6::3
-                # This would otherwise fail later on HGVS parsing error
-                if len(code) > 1 and method == 'sanger':
-                    raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
 
                 # Replace transcript version if necessary
                 tx = code[0].split(':')[0]  # case : NM_005585.4:c.1419dup
@@ -277,7 +309,8 @@ def main(fp_config):
                         db,
                         vardbs,
                         params,
-                        max_variation)
+                        max_variation,
+                        blind_search)
 
         else:
             return None

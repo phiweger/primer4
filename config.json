@@ -11,9 +11,8 @@
         }
     },
     "snv_filter": {
-        "allow_snvs": false,
         "min_databases": 2,
-        "max_snv_len": 10,
+        "max_snv_len": 10
     },
     "n_return": 10,
     "burnin_sanger": 30,

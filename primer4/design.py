@@ -88,25 +88,66 @@ def design_primers(masked, constraints, params, previous=[]):
     ]
 
     # https://libnano.github.io/primer3-py/quickstart.html#workflow
-    design = primer3.bindings.designPrimers(*spec)
+    designs = primer3.bindings.designPrimers(*spec)
     
     try:
-        best = PrimerPair(parse_design(design, 1)[0])
-        previous.append(best)
+        best = PrimerPair(parse_designs(designs, n=1)[0])
+        print(best)
+        from collections import Counter
+        print('Ns:', Counter(masked)['N'])
+
+        if not constraints.get('snvs'):
+            raise ValueError('No constraints')
+
+        d = project_mask_onto_primers(best, constraints['snvs'])
+        valid_fwd, dots_fwd, pos_fwd = d['fwd']
+        valid_rev, dots_rev, pos_rev = d['rev']
+        print(valid_fwd, dots_fwd, pos_fwd, valid_rev, dots_rev, pos_rev)
+        
+        if not all([valid_fwd, valid_rev]):
+            # We detected an SNV in a primer.
+
+            masked = ''.join(
+                ['N' if ix in set(pos_fwd + pos_rev) else i for ix, i in enumerate(masked)])
+            
+        else:
+            previous.append(best)
+
         yield from design_primers(masked, constraints, params, previous)
 
     except KeyError:
         # No primers found
         yield previous
+    
 
 
-def parse_design(design, n):
+    #     # Has the search been performed w/o considering SNVs first?
+    #     if constraints['snvs']:
+    #         d = project_mask_onto_primers(best, constraints['snvs'])
+    #         valid_fwd, dots_fwd = d['fwd']
+    #         valid_rev, dots_rev = d['fwd']
+    #         print(valid_fwd, dots_fwd, valid_rev, dots_rev)
+    #         if not all([valid_fwd, valid_rev]):
+    #             # Mask the SNVs only and continue search
+    #             masked = ''.join(
+    #                 ['N' if ix in constraints['snvs'] else i for ix, i in enumerate(masked)])
+    #             yield from design_primers(masked, constraints, params, previous)
+
+    #     previous.append(best)
+    #     yield from design_primers(masked, constraints, params, previous)
+
+    # except KeyError:
+    #     # No primers found
+    #     yield previous
+
+
+def parse_designs(designs, n):
     
     primers = {}
     for i in range(n):
         
-        fwd_start, fwd_len = design[f'PRIMER_LEFT_{i}']
-        rev_start, rev_len = design[f'PRIMER_RIGHT_{i}']
+        fwd_start, fwd_len = designs[f'PRIMER_LEFT_{i}']
+        rev_start, rev_len = designs[f'PRIMER_RIGHT_{i}']
         
         # c .. candidate
         primers[i] = {
@@ -114,33 +155,33 @@ def parse_design(design, n):
                 'start': fwd_start,
                 'end': fwd_start + fwd_len,
                 # 'sanity': template[fwd_start:fwd_start + fwd_len],
-                'sequence': design[f'PRIMER_LEFT_{i}_SEQUENCE'],
-                'Tm': round(design[f'PRIMER_LEFT_{i}_TM'], 2),
+                'sequence': designs[f'PRIMER_LEFT_{i}_SEQUENCE'],
+                'Tm': round(designs[f'PRIMER_LEFT_{i}_TM'], 2),
             },
             'rev': {
                 # That Python 0-based, end-exclusive indexing thing ...
                 'start': rev_start - rev_len + 1,
                 'end': rev_start + 1,
                 # 'sanity': rc(template[rev_start - rev_len + 1:rev_start + 1]),
-                'sequence': design[f'PRIMER_RIGHT_{i}_SEQUENCE'],
-                'Tm': round(design[f'PRIMER_RIGHT_{i}_TM'], 2),
+                'sequence': designs[f'PRIMER_RIGHT_{i}_SEQUENCE'],
+                'Tm': round(designs[f'PRIMER_RIGHT_{i}_TM'], 2),
             },
-            'insert': design[f'PRIMER_PAIR_{i}_PRODUCT_SIZE'],
-            'penalty': round(design[f'PRIMER_PAIR_{i}_PENALTY'], 4),
+            'insert': designs[f'PRIMER_PAIR_{i}_PRODUCT_SIZE'],
+            'penalty': round(designs[f'PRIMER_PAIR_{i}_PENALTY'], 4),
         }
 
     return primers
 
 
-def sort_penalty(primers):
-    '''
-    It seems primer3 already sorts primers from best to worst, but just to
-    make sure.
-    '''
-    loss = {}
-    for k, v in primers.items():
-        loss[k] = v['penalty']
-    return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
+# def sort_penalty(primers):
+#     '''
+#     It seems primer3 already sorts primers from best to worst, but just to
+#     make sure.
+#     '''
+#     loss = {}
+#     for k, v in primers.items():
+#         loss[k] = v['penalty']
+#     return [k for k, v in sorted(loss.items(), key=lambda x: x[1])]
 
 
 # TODO: expose variables
@@ -391,4 +432,43 @@ def parse_blast_btop(s, debug=False):
         return result, cast_split
     else:
         return result
+
+
+def project_mask_onto_primers(primers, mask, mn_3prime_matches=15):
+    '''
+    Project SNVs onto primer, and decide if compatible with the constraint to
+    have a certain number of matches on the 3' end.
+
+    Example:
+
+    project_mask_onto_primers(primers_nomask[0], tmp.mask)
+    {
+        'fwd': (True, '.....................'),
+        'rev': (True, '...||................')
+    }
+    '''
+    d = {}
+    if not mask:
+        mask = set()
+
+    for x in ['fwd', 'rev']:
+        start = primers.data[x]['start']
+        end = primers.data[x]['end']
+        print(x, start, end)
+        
+        z = [('|', i) if i in mask else ('.', i) for i in range(start, end)]
+        # import pdb; pdb.set_trace()
+        # Dot notation: "." means no SNV, "|" means SNV, e.g. 2nd and last
+        # positions of the primer have an SNV: ".|......|"
+        dots =  ''.join([i for i, _ in z])
+        pos = [j for i, j in z if i == '|']
+        assert len(dots) == len(primers.data[x]['sequence']), \
+            f'{x}, {dots}, {primers.data[x]["sequence"]}'
+
+        valid = not '|' in dots[-mn_3prime_matches:]
+        d[x] = (valid, dots, pos)
+    return d
+
+
+
 

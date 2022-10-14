@@ -120,17 +120,12 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
             primers.extend(x)
         print(log(f'Found {len(primers)}'))
 
-
         if blind_search:
             nomask = mask_sequence(tmp.sequence, set())
             #constraints['snvs'] = tmp.mask
             #import pdb
             #pdb.set_trace()
             print(log('Run: Design first'))
-            
-            # print(constraints)
-            #print(f'Found {len(primers_nomask)} more primers')
-            
             
             for constraints in all_constraints:
                 primers_nomask = [p for p in next(
@@ -286,7 +281,8 @@ def main(fp_config):
         submitted = st.form_submit_button(
             'Run',
             on_click=warn(method, params, amplicon_len_min, amplicon_len_max))
-        
+            # warn() will replace params inplace (eg amplicon len)
+
         if submitted:
             if not order:
                 st.write('Please provide a query')

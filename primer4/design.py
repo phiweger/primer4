@@ -53,6 +53,7 @@ def design_primers(masked, constraints, params, previous=[]):
         masked = ''.join(
             [i if i==j else 'N' for i, j in zip(mask_fwd, mask_rev)])
 
+    #print(only_here)
     spec =  [
         {
             'SEQUENCE_TEMPLATE': masked,

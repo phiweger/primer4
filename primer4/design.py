@@ -162,6 +162,34 @@ def sort_by_penalty(primers):
     return [v[1] for k, v in sorted(loss.items(), key=lambda x: x[1][0])]
 
 
+def dereplicate(primers):
+    '''
+    When we run two design cycles, one allowing SNVs and the other not,
+    the name primers can be found independently. Remove those duplicates.
+    '''
+    duplicate, results = set(), []
+    for p1 in primers:
+        has_replicate = 0
+        d1 = [v for k, v in sorted(p1.data.items())]
+
+        for p2 in primers:
+            if p1.name == p2.name:
+                continue
+            else:
+                d2 = [v for k, v in sorted(p2.data.items())]
+                if d1 == d2:
+                    duplicate.add(tuple(sorted((p1.name, p2.name))))
+
+    # We can only get pairs of duplicates, not 3 duplicates
+    _, not_those = zip(*duplicate)
+    for p in primers:
+        if not p.name in not_those:
+            # singletons and first in a pair of duplicates
+            results.append(p)
+
+    return results
+
+
 # TODO: expose variables
 # TODO: rethink settings, see TODO list
 def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000):

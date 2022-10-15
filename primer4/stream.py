@@ -24,6 +24,7 @@ from primer4.design import (
     design_primers,
     check_for_multiple_amplicons,
     sort_by_penalty,
+    dereplicate,
     )
 from primer4.hacks import download_button
 from primer4.utils import (
@@ -143,7 +144,13 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     else:
         raise ValueError('Method is not implemented, exit.')
     
+    
+    if blind_search:
+        print(log('Dereplicating primers from two search cycles (with and wihtout SNVs)'))
+        primers = dereplicate(primers)
+
     primers = sort_by_penalty(primers)[:params['primers']['max_num_candidates']]
+
     results, aln = check_for_multiple_amplicons(primers, fp_genome)
     # Until now, we have only checked the alignment of primers to the
     # reference genome -- any "variants" are really mapping mismatches.

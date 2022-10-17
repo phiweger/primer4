@@ -181,7 +181,11 @@ def dereplicate(primers):
                     duplicate.add(tuple(sorted((p1.name, p2.name))))
 
     # We can only get pairs of duplicates, not 3 duplicates
-    _, not_those = zip(*duplicate)
+    if duplicate:
+        _, not_those = zip(*duplicate)
+    else:
+        # No duplicates found
+        not_those = set()
     for p in primers:
         if not p.name in not_those:
             # singletons and first in a pair of duplicates

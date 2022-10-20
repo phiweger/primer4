@@ -159,6 +159,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
 
     #import pdb
     #pdb.set_trace()
+    
     msg = f'{len(results)}/{len(primers)} primer pairs pass all filters'
     print(log(msg))
     st.write(msg)

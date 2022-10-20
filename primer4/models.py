@@ -6,6 +6,7 @@ import click
 from gffutils.feature import Feature
 import hgvs
 from hgvs.assemblymapper import AssemblyMapper
+import numpy as np
 import pyfaidx
 from pysam import VariantFile
 
@@ -17,6 +18,7 @@ from primer4.utils import (
     load_variation_freqs,
     log,
     manual_c_to_g,
+    find_nearest,
     )
     # sync_tx_with_feature_db)
 
@@ -336,6 +338,27 @@ class Template():
         return exons
 
 
+    def map_genomic_coord_to_coding(self, coord):
+        try:
+            c = self.g_to_c[coord]
+            return c
+        except KeyError:
+            # Primer coords falls outside of coding regions
+            genomic_coords = np.array([k for k in self.g_to_c.keys()])
+            nearest = find_nearest(genomic_coords, coord)
+            if nearest > coord:
+                delta = nearest - coord
+                return f'{self.g_to_c[nearest]}-{delta}'
+            else:
+                # nearest == coord does not occur here
+                delta = coord - nearest
+                return f'{self.g_to_c[nearest]}+{delta}'
+
+
+
+
+
+
     # def mask_sequence(self, genome, mask='N', unmasked=''):
     #     s = self.get_sequence(genome)
         
@@ -374,39 +397,6 @@ class PrimerPair():
     def __repr__(self):
         return f'{self.fwd.start}-{self.fwd.end}:{self.rev.start}-{self.rev.end}, loss: {self.penalty}'
 
-    def to_g(self, template):
-        '''
-        Translate primer coords into genomics ones.
-        '''
-        fwd_start = template.feat.start + self.fwd.start
-        fwd_end   = template.feat.start + self.fwd.end
-        rev_start = template.feat.start + self.rev.start
-        rev_end   = template.feat.start + self.rev.end    
-    
-        return [fwd_start, fwd_end, rev_start, rev_end]
-
-    def to_c(self, template):
-        '''
-        Translate primer coords into coding ones.
-
-        TODO: Can take genomic position and query template for the start of
-        the closest exon, or pass spanned exon and calc distance then write
-        coding_start - difference.
-
-        If its on the exon, have this position, else return the start of the
-        exon?
-        '''
-        # TODO: Does not work if non-coding position
-        return [template.g_to_c[i] for i in self.to_g(template)]
-        '''
-        TODO: Get the closest coding position, then do +- x.
-        '''
-        # qry = 7579200
-        # nearest_g = min(tmp.g_to_c.keys(), key=lambda x: abs(x - qry))
-        # nearest_c = tmp.g_to_c[nearest_g]
-        # str(qry - nearest_g)  # -112
-        # TODO: start or end of primer reference here ie -132 oder -112
-
     def save(self, fp):
         with open(fp, 'w+') as out:
             for i in ['fwd', 'rev']:
@@ -430,5 +420,16 @@ class PrimerPair():
             start, end = end, start
         start += 1  # + 1 bc/ SNPcheck validation 
         return chrom, start, end
+
+    def get_coding_coords(self, template, orient=None):
+        if not orient or orient not in ['fwd', 'rev']:
+            raise ValueError('Please provide an orientation [fwd|rev]')
+
+        chrom, g_start, g_end = self.get_genomic_coords(template, orient)
+        c_start = template.map_genomic_coord_to_coding(g_start)
+        c_end = template.map_genomic_coord_to_coding(g_end)
+        return chrom, c_start, c_end
+
+
 
 

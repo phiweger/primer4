@@ -10,6 +10,7 @@ import sys
 
 import click
 import gffutils
+import numpy as np
 from hgvs.parser import Parser
 # https://github.com/biocommons/hgvs
 import primer3
@@ -691,3 +692,13 @@ def reconstruct_mrna(tx, feature_db, genome, vardbs):
         coords.extend(pos)
     
     return reconstruction, exons, coords, segmentation
+
+
+def find_nearest(array, value):
+    '''
+    https://stackoverflow.com/questions/2566412/find-nearest-value-in-numpy-array
+    '''
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
+

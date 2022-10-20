@@ -616,3 +616,41 @@ class PythonLiteralOption(click.Option):
             return ast.literal_eval(value)
         except:
             raise click.BadParameter(value)
+
+
+
+
+
+
+    def to_g(self, template):
+        '''
+        Translate primer coords into genomics ones.
+        '''
+        fwd_start = template.feat.start + self.fwd.start
+        fwd_end   = template.feat.start + self.fwd.end
+        rev_start = template.feat.start + self.rev.start
+        rev_end   = template.feat.start + self.rev.end    
+    
+        return [fwd_start, fwd_end, rev_start, rev_end]
+
+    def to_c(self, template):
+        '''
+        Translate primer coords into coding ones.
+
+        TODO: Can take genomic position and query template for the start of
+        the closest exon, or pass spanned exon and calc distance then write
+        coding_start - difference.
+
+        If its on the exon, have this position, else return the start of the
+        exon?
+        '''
+        # TODO: Does not work if non-coding position
+        return [template.g_to_c[i] for i in self.to_g(template)]
+        '''
+        TODO: Get the closest coding position, then do +- x.
+        '''
+        # qry = 7579200
+        # nearest_g = min(tmp.g_to_c.keys(), key=lambda x: abs(x - qry))
+        # nearest_c = tmp.g_to_c[nearest_g]
+        # str(qry - nearest_g)  # -112
+        # TODO: start or end of primer reference here ie -132 oder -112

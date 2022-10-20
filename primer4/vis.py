@@ -302,6 +302,8 @@ def primers_to_df(primers, tmp, qry, aln):
             fwd_end,
             rev_start,
             rev_end,
+            *[f'c.{i}' for i in pair.get_coding_coords(tmp, 'fwd')[1:]],
+            *[f'c.{i}' for i in pair.get_coding_coords(tmp, 'rev')[1:]],
             qry,
             dots_fwd,
             dots_rev,
@@ -317,7 +319,7 @@ def primers_to_df(primers, tmp, qry, aln):
     else:
         # TODO: Add mismatches and poistion of mm from 3' end
         df = pd.DataFrame(l)
-        df.columns = 'name,penalty,amplicon,fwd len,rev len,fwd GC,rev GC,fwd Tm,rev Tm,fwd 5>3,rev 5>3,transcript,chrom,fwd start,fwd end,rev start,rev end,query,aln fwd 5>3,aln rev 5>3'.split(',')    
+        df.columns = 'name,penalty,amplicon,fwd len,rev len,fwd GC,rev GC,fwd Tm,rev Tm,fwd 5>3,rev 5>3,transcript,chrom,fwd start,fwd end,rev start,rev end,fwd c. start, fwd c. end, rev c. start, rev c. end,query,aln fwd 5>3,aln rev 5>3'.split(',')    
         # Sort df; in case of qPCR we look first left then right of exon so we
         # get two independent sets of primers, ie df is not ordered in this case
         df = df.sort_values('penalty')

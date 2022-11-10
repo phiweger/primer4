@@ -146,12 +146,13 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     
     
     if blind_search:
-        print(log('Dereplicating primers from two search cycles (with and wihtout SNVs)'))
+        print(log('Dereplicating primers from two search cycles (with and without SNVs)'))
         primers = dereplicate(primers)
 
-    primers = sort_by_penalty(primers)[:params['primers']['max_num_candidates']]
+    mx = params['primers']['check_max_num_candidates']
+    primers = sort_by_penalty(primers)[:mx]
 
-    results, aln = check_for_multiple_amplicons(primers, fp_genome)
+    results, aln = check_for_multiple_amplicons(primers, fp_genome, params)
     # Until now, we have only checked the alignment of primers to the
     # reference genome -- any "variants" are really mapping mismatches.
     # In the case of designing primers while ignoring SNVs, we need to

@@ -281,8 +281,8 @@ def primers_to_df(primers, tmp, qry, aln):
         # however, for now I accept the slight code duplication. Could add
         # this to the PrimerPair object or keep here so it is explicit.
         d = project_mask_onto_primers(pair, tmp.mask)
-        valid_fwd, dots_fwd, pos_fwd = d['fwd']
-        valid_rev, dots_rev, pos_rev = d['rev']
+        _, dots_fwd, pos_fwd = d['fwd']
+        _, dots_rev, pos_rev = d['rev']
 
         row = [
             pair.name,
@@ -297,6 +297,7 @@ def primers_to_df(primers, tmp, qry, aln):
             pair.data['fwd']['sequence'],
             pair.data['rev']['sequence'],
             tmp.tx,
+            tmp.feat.attributes.get('gene')[0],
             convert_chrom(tmp.feat.chrom),
             fwd_start,
             fwd_end,
@@ -319,7 +320,7 @@ def primers_to_df(primers, tmp, qry, aln):
     else:
         # TODO: Add mismatches and poistion of mm from 3' end
         df = pd.DataFrame(l)
-        df.columns = 'name,penalty,amplicon,fwd len,rev len,fwd GC,rev GC,fwd Tm,rev Tm,fwd 5>3,rev 5>3,transcript,chrom,fwd start,fwd end,rev start,rev end,fwd c. start, fwd c. end, rev c. start, rev c. end,query,aln fwd 5>3,aln rev 5>3'.split(',')    
+        df.columns = 'name,penalty,amplicon,fwd len,rev len,fwd GC,rev GC,fwd Tm,rev Tm,fwd 5>3,rev 5>3,transcript,gene,chrom,fwd start,fwd end,rev start,rev end,fwd c. start, fwd c. end, rev c. start, rev c. end,query,aln fwd 5>3,aln rev 5>3'.split(',')    
         # Sort df; in case of qPCR we look first left then right of exon so we
         # get two independent sets of primers, ie df is not ordered in this case
         df = df.sort_values('penalty')

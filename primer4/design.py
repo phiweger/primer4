@@ -100,7 +100,9 @@ def design_primers(masked, constraints, params, previous=[]):
         if not constraints.get('snvs'):
             raise ValueError('No constraints')
 
-        d = project_mask_onto_primers(best, constraints['snvs'])
+        d = project_mask_onto_primers(
+            best, constraints['snvs'], params['primers']['mn_3prime_matches'])
+        
         valid_fwd, dots_fwd, pos_fwd = d['fwd']
         valid_rev, dots_rev, pos_rev = d['rev']
         #print(valid_fwd, dots_fwd, pos_fwd, valid_rev, dots_rev, pos_rev)
@@ -196,7 +198,7 @@ def dereplicate(primers):
 
 # TODO: expose variables
 # TODO: rethink settings, see TODO list
-def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100, mx_amplicon_len=4000, mx_amplicon_n=1, mn_matches=15, n_cpus=8, mx_blast_hits=10000):
+def check_for_multiple_amplicons(primers, fp_genome, params):
     '''
     Params mostly from ISPCR from UCSC genome browser:
 
@@ -206,6 +208,15 @@ def check_for_multiple_amplicons(primers, fp_genome, word_size=13, mx_evalue=100
     mx_amplicon_n = 1  # pseudogene and unwanted amplification check
     mn_matches = 15    # 3' matches
     '''
+    mx_amplicon_len = params['primers']['mx_amplicon_len']
+    mx_amplicon_n = params['primers']['mx_amplicon_n']
+    mn_matches = params['primers']['mn_3prime_matches']
+    
+    word_size = params['blast']['word_size']
+    mx_evalue = params['blast']['mx_evalue']
+    mx_blast_hits = params['blast']['mx_blast_hits']
+    n_cpus = params['blast']['n_cpus']
+
     tmpdir = tempfile.TemporaryDirectory()
     p = tmpdir.name
 

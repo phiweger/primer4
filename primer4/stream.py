@@ -278,7 +278,7 @@ def main(fp_config):
         # qPCR; eg "::3" means we target exon 3
         NM_000546.6::4
         # mRNA; anchor primers in two exons
-        NM_000546.6::5::6
+        NM_000546.6::5::7
         ```
         '''
         )

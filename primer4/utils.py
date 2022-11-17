@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 import datetime
 from difflib import get_close_matches
 from itertools import chain, zip_longest
@@ -650,26 +650,87 @@ def mask_sequence(seq, var, mask='N', unmasked=''):
     return masked.upper()
 
 
-def reconstruct_mrna(tx, feature_db, genome, vardbs):
+# def reconstruct_mrna(tmp, feature_db, genome):
+def reconstruct_mrna(tmp, feature_db):
+
+    target_exons = set([tmp.data.exon1, tmp.data.exon2])
+    assert len(target_exons) == 2
+
+    tx = tmp.feat
     exons = {}
     for e in feature_db.children(tx, featuretype='exon', order_by='start'):
-        exons[int(e.id.split('-')[-1])] = e
+        exons[int(e.id.split('-')[-1])] = e  # eg "exon-4" > 4 
 
-    reconstruction = ''
-    coords = []
-    segmentation = []
+    # reconstruction = ''
+    # coords = []
+    # segmentation = []
 
     # print(exons)
-    for k in sorted(exons.keys()):
-        ex = exons[k]
-        
-        # seq = ex.sequence(genome).upper()  # accounts for strand
+    tmp_seq = tmp.sequence.upper()
+    target_pos = set()
 
+    boundaries = []
+
+    for k in target_exons:
+        ex = exons[k]
         #seq = sequence[ex.start:ex.end+1]
         #print(sequence[:10], ex.start, ex.end)
+        #seq = ex.sequence(genome).upper()   # accounts for strand
+        #assert len(seq) == len(ex)
         
-        seq = ex.sequence(genome).upper()
+        # Don't reconstruct but fill sequence w/ Ns where no exon does not work,
+        # because we have the length constraint of the amplicon. Or we simply
+        # add the distance between the two selected exons.
+        # start, end = ex.start, ex.end+1
+        # if start > end:
+        #     start, end = end, start
+
+        pos = list(range(ex.start, ex.end+1))
+        # if ex.strand == '-':
+        #     pos = list(reversed(pos))
+
+        boundaries.append(
+            sorted(
+                [tmp.relative_pos(i) for i in [pos[0], pos[-1]]]))
+        
+        # Mark positions where primers are allowed to bind
+        for i in pos:
+            ix = tmp.relative_pos(i)
+            # tmp.start == tmp.invert_relative_pos(0) == 7571738
+            target_pos.add(ix)
+    
+    boundaries = sorted(boundaries)
+    x = ''.join([j if i+1 in target_pos else 'N' for i, j in enumerate(tmp_seq)])
+    assert len(x) == len(tmp)
+    # for k in sorted(exons.keys()):
+    #     ex = exons[k]
+    #     seq = ex.sequence(genome).upper()
+    #     #assert seq in x
+
+    # We only mark exons on the template, which still contains introns. We thus
+    # need to add an offset to the desired amplicon range, which needs to
+    # be expanded by the number of Ns between the two exons; note, that if
+    # another exon is spanned, we need to subtract its coding positions from the
+    # offset.
+    left, right = boundaries
+    cnt = Counter(x[left[1]:right[0]+1])
+    offset = cnt['N']
+
+    left, right = sorted(target_exons)
+    for k, ex in exons.items():
+        if left < k < right:
+            offset = offset - len(ex)
+
+    # import pdb
+    # pdb.set_trace()
+    return x, boundaries, offset
+
+
+    '''
         if vardbs:
+            # tmp.mask_freqs_filtered
+            # map mRNA coords to exon coords -- dict
+            # 
             var = load_variation(ex, vardbs)
             seq = mask_sequence(seq, var) 
 
@@ -690,8 +751,8 @@ def reconstruct_mrna(tx, feature_db, genome, vardbs):
     
         segmentation.extend([k] * len(seq))
         coords.extend(pos)
-    
-    return reconstruction, exons, coords, segmentation
+    '''
+    #return reconstruction, exons, coords, segmentation
 
 
 def find_nearest(array, value):

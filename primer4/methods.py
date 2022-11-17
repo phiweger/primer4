@@ -68,8 +68,8 @@ def qpcr(template, feature_db, params):
             ),
         'size_range': (mn, mx)
     }
-    # right
 
+    # right
     rrb = template.relative_pos(l[right].start)  # rrb .. relative right bound
     cr = {
         'only_here': (
@@ -82,10 +82,10 @@ def qpcr(template, feature_db, params):
 
 
 def mrna(template, feature_db, params):
-    if not template.mrna:
-        raise ValueError('Please reconstruct the mRNA first')
-    
-    mrna, exons, coords, labels = template.mrna
+    # if not template.mrna:
+    #     raise ValueError('Please reconstruct the mRNA first')
+    '''
+    mrna, boundaries, offset = template.mrna
 
     here = []
     for exon in template.data.data[1:]:
@@ -93,11 +93,21 @@ def mrna(template, feature_db, params):
         mn, mx = min(x), max(x)
         here.append((mn, mx-mn))
 
+    rng = [i+offset for i in params['size_range_mRNA']]
+
     constraints = {
         'only_here': tuple(here),
-        'size_range': tuple(params['size_range_mRNA'])
+        'size_range': tuple(rng)
     }
+    '''
+    _, boundaries, offset = template.mrna
+    rng = [i+offset for i in params['size_range_mRNA']]
 
+    constraints = {
+        'only_here': tuple(boundaries),
+        'size_range': tuple(rng)
+    }
+    
     return constraints
 
 

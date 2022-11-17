@@ -36,6 +36,8 @@ def design_primers(masked, constraints, params, previous=[]):
     size_range = constraints['size_range']
 
     # https://primer3.ut.ee/primer3web_help.htm
+    # The associated value must be a semicolon-separated list of
+    # <left_start>,<left_length>,<right_start>,<right_length>
     # SEQUENCE_PRIMER_PAIR_OK_REGION_LIST=100,50,300,50 ; 900,60,, ; ,,930,100
     only_here = list(chain(*constraints['only_here']))
     # print(only_here)
@@ -94,7 +96,7 @@ def design_primers(masked, constraints, params, previous=[]):
     try:
         best = PrimerPair(parse_designs(designs, n=1)[0])
         #print(best)
-        from collections import Counter
+        #from collections import Counter
         #print('Ns:', Counter(masked)['N'])
 
         if not constraints.get('snvs'):

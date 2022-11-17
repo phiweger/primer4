@@ -82,11 +82,11 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     if method == 'sanger':
         
         constraints = tmp.apply(method, db, params)
-        # We do two runs: Design primers w/o any consideration for SNVs, and
-        # then design another set with such considerations. Then remove those
-        # that are not suitable.
         masked = mask_sequence(tmp.sequence, tmp.mask)
         
+        # We can run primer4 in two ways: First mark SNVs, then search primers
+        # "between" them OR first search primers, and then filter them if any
+        # SNVs are located in sensitive areas such as 3' binding sites.
         print(log('Run: SNVs first'))
         constraints['snvs'] = tmp.mask
         primers = [p for p in next(
@@ -136,11 +136,43 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
 
 
     elif method == 'mrna':
-        tmp.mrna = reconstruct_mrna(tmp.feat, db, genome, vardbs)
+        # tmp.mrna = reconstruct_mrna(tmp, db, genome)
+        
+        # Mask all exons but the ones we want to find primers in
+        tmp.mrna = reconstruct_mrna(tmp, db)
+        # Contains: mrna_mask, exons, offset
+        
+        # Mask SNVs
+        masked = mask_sequence(tmp.sequence, tmp.mask)
+        # Now merge
+        mrna_mask, _, offset = tmp.mrna
+        assert len(mrna_mask) == len(masked)
+        masked = ''.join([j if j=='N' else i for i, j in zip(mrna_mask, masked)])
+
         constraints = tmp.apply('mrna', db, params)
-        masked = tmp.mrna[0]
+        constraints['snvs'] = tmp.mask
+
+        print(log('Run: SNVs first'))
         primers = [p for p in next(design_primers(masked, constraints, params, []))]
-    
+        # import pdb
+        # pdb.set_trace()
+
+        if blind_search:
+            nomask = mask_sequence(tmp.sequence, set())
+            nomask = ''.join([j if j=='N' else i for i, j in zip(mrna_mask, nomask)])
+
+            print(log('Run: Design first'))
+            primers_nomask = [p for p in next(design_primers(nomask, constraints, params, []))]
+            # print(constraints)
+            print(log(f'Found {len(primers_nomask)} more primers'))
+            primers = primers + primers_nomask
+            print(log(f'Found {len(primers)} in total'))
+        
+        # Add offset, inplace operation
+        for p in primers:
+            p.offset = offset
+
+
     else:
         raise ValueError('Method is not implemented, exit.')
     

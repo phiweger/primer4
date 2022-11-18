@@ -393,6 +393,7 @@ class PrimerPair():
                setattr(self, a, [PrimerPair(x) if isinstance(x, dict) else x for x in b])
             else:
                setattr(self, a, PrimerPair(b) if isinstance(b, dict) else b)
+        self.offset = 0  # store amplicon len offset when in mRNA mode
 
     def __repr__(self):
         return f'{self.fwd.start}-{self.fwd.end}:{self.rev.start}-{self.rev.end}, loss: {self.penalty}'
@@ -404,9 +405,9 @@ class PrimerPair():
 
     def get_amplicon_len(self):
         if self.offset:
-            return self.rev.end - self.fwd.start - self.offset
+            return self.rev.end - self.fwd.start - self.offset  # mRNA
         else:
-            return self.rev.end - self.fwd.start
+            return self.rev.end - self.fwd.start  # Sanger, qPCR
 
     def get_gc(self, direction):
         seq = self.data[direction]['sequence']

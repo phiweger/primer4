@@ -17,7 +17,7 @@ with screed.open(fp) as file:
             d[line.name.split(' ')[0]] = x
 
 
-with open('chrom_names.csv', 'w+') as out:
+with open('chrom_names_hg38.csv', 'w+') as out:
     for k, v in d.items():
         out.write(f'{k},{v}\n')
 

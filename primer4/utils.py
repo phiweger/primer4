@@ -17,16 +17,7 @@ import primer3
 from pysam import VariantFile
 
 
-# https://stackoverflow.com/questions/1270951/how-to-refer-to-relative-paths-of-resources-when-working-with-a-code-repository
-fn = Path(__file__).parents[1] / 'chrom_names.csv'
-chrom_names = {}
-with open(fn, 'r') as file:
-    for line in file:
-        k, v = line.strip().split(',')
-        chrom_names[k] = v
-
-
-def convert_chrom(chrom):
+def convert_chrom(chrom, chrom_names):
     return chrom_names.get(chrom)
 
 
@@ -588,7 +579,8 @@ def load_variation_freqs(feat, databases, params):
 
         # dbSNP names chromosomes like "NC_000007.13", others like "7"
         if name != 'dbSNP':
-            vv = variants.fetch(convert_chrom(feat.chrom), feat.start, feat.end)
+            chrom_names = params['cn']
+            vv = variants.fetch(convert_chrom(feat.chrom, chrom_names), feat.start, feat.end)
         else:
             vv = variants.fetch(feat.chrom, feat.start, feat.end)
 

@@ -269,7 +269,7 @@ def prepare_data_for_vis(v, tmp, primers):
         st.stop()
 
 
-def primers_to_df(primers, tmp, qry, aln):
+def primers_to_df(primers, tmp, qry, params):
     pd.set_option("display.precision", 2)
 
     l = []
@@ -298,7 +298,7 @@ def primers_to_df(primers, tmp, qry, aln):
             pair.data['rev']['sequence'],
             tmp.tx,
             tmp.feat.attributes.get('gene')[0],
-            convert_chrom(tmp.feat.chrom),
+            convert_chrom(tmp.feat.chrom, params['cn']),
             fwd_start,
             fwd_end,
             rev_start,

@@ -8,7 +8,8 @@
             "dbSNP": "data/GRCh37_latest_dbSNP_all.vcf.gz",
             "1000Genomes": "data/ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz",
             "ESP": "data/ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.vcf.gz"
-        }
+        },
+        "chrom_names": "data/chrom_names_hg19.csv"
     },
     "snv_filter": {
         "min_databases": 2,

@@ -199,6 +199,17 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     return results, tmp, aln
 
 
+def load_chromosome_names(fn):
+    # https://stackoverflow.com/questions/1270951/how-to-refer-to-relative-paths-of-resources-when-working-with-a-code-repository
+    # fn = Path(__file__).parents[1] / 'chrom_names_hg38.csv'
+    chrom_names = {}
+    with open(fn, 'r') as file:
+        for line in file:
+            k, v = line.strip().split(',')
+            chrom_names[k] = v
+    return chrom_names
+
+
 # https://docs.streamlit.io/knowledge-base/using-streamlit/caching-issues
 # https://discuss.streamlit.io/t/unhashabletype-cannot-hash-object-of-type-thread-local/1917
 @st.cache(allow_output_mutation=True)
@@ -241,6 +252,10 @@ def main(fp_config):
 
     with open(fp_config, 'r') as file:
         params = json.load(file)
+    
+    chrom_names = load_chromosome_names(params['data']['chrom_names'])
+    _ = params.update({'cn': chrom_names})  # inplace, this feels dirty
+
     # TODO:
     # https://github.com/phiweger/primer4/issues/2
     # Why does it trigger reload in housekeeping fn but not here?
@@ -369,7 +384,7 @@ def main(fp_config):
 
     # TODO def prepare_df() in vis
     
-    df = primers_to_df(primers, tmp, order, aln)
+    df = primers_to_df(primers, tmp, order, params)
     if df.empty:
         st.write('No primers found under the provided constrains. Relax (the constraints)!')
 

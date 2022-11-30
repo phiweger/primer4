@@ -51,7 +51,7 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
             raise ValueError('Wrong query syntax, should be something like "NM_000546.6:c.215C>G"')
         
         try:
-            v = Variant(code[0], hdp, db)
+            v = Variant(code[0], hdp, params['version'])
         # TODO: Catch this error in the main fn so we don't have st.x() fn
         # all over the code? We could let all errors propagate up to there ...
         except hgvs.exceptions.HGVSParseError:

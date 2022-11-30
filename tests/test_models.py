@@ -57,25 +57,29 @@ def test_variant(db):
 # Test multiple variants using fixture parametrization:
 # - https://towardsdatascience.com/pytest-for-data-scientists-2990319e55e6
 # - https://stackoverflow.com/questions/61475337/refreshing-pytest-fixtures-in-first-test-during-custom-scenario-runner
-partial_fn_signature = 'code, coding_start, chrom, genomic_start'
+partial_fn_signature = 'version, code, coding_start, chrom, genomic_start'
 testdata = [
-    ('NM_000546.6:c.215C>G', 215, 'NC_000017.10', 7579472),
-    ('NM_000546.6:c.672+3C>G', 672, 'NC_000017.10', 7578174),
-    ('NM_015015.3:c.2441+1G>A', 2441, 'NC_000019.9', 5137688)
+    ('hg19', 'NM_000546.6:c.215C>G', 215, 'NC_000017.10', 7579472),
+    ('hg19', 'NM_000546.6:c.672+3C>G', 672, 'NC_000017.10', 7578174),
+    ('hg19', 'NM_015015.3:c.2441+1G>A', 2441, 'NC_000019.9', 5137688)
     ]
+# TODO: Add hg38 validation data
+
 
 # @pytest.mark.parametrize('number1,number2', [(1, 2), (3, 4)])
 @pytest.mark.parametrize(partial_fn_signature, testdata)
-def test_variant2(code, coding_start, chrom, genomic_start, hdp, db):
-    v = Variant(code, hdp, db)
-    assert v.start == coding_start
-    assert v.chrom == chrom
-    assert v.g.posedit.pos.start.base == genomic_start
-
+def test_variant2(version, code, coding_start, chrom, genomic_start, hdp, db, params):
+    v = Variant(code, hdp, params['version'])
     tmp = Template(v, db)
-    assert tmp.relative_pos(tmp.start) == 0
-    assert tmp.relative_pos(tmp.end) == len(tmp)
-    assert tmp.invert_relative_pos(tmp.relative_pos(tmp.start)) == tmp.start
+    
+    if version == params['version']:
+        assert v.start == coding_start
+        assert v.chrom == chrom
+        assert v.g.posedit.pos.start.base == genomic_start
+        
+        assert tmp.relative_pos(tmp.start) == 0
+        assert tmp.relative_pos(tmp.end) == len(tmp)
+        assert tmp.invert_relative_pos(tmp.relative_pos(tmp.start)) == tmp.start
 
 
 # NM_000546.6:c.(4071+1_4072-1)_(5154+1_5155-1)del

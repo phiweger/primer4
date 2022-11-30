@@ -1,4 +1,5 @@
 {
+    "version": "hg19",
     "data": {
         "reference": "data/GRCh37_latest_genomic.fna",
         "annotation": "data/hg19-p13_annotation_bak.db",

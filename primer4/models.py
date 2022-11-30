@@ -40,7 +40,13 @@ class Variant():
 
     - NM_015015.3:c.2441+1G>A
     '''
-    def __init__(self, code, coords, feature_db):
+    def __init__(self, code, coords, version='hg19'):
+        versions = {
+            'hg19': 'GRCh37',
+            'hg38': 'GRCh38',
+        }
+        self.version = versions[version] 
+        
         self.code = code
         self.data = self.parse_code(code)
         self.g = None
@@ -83,10 +89,10 @@ class Variant():
             #    print('Variant cannot be HGVS-parsed!')
             #    return None
 
-    def map_to_genomic(self, tx_map, genome_version='GRCh37', method='splign'):
+    def map_to_genomic(self, tx_map, method='splign'):
         am = AssemblyMapper(
             tx_map,
-            assembly_name=genome_version,
+            assembly_name=self.version,
             alt_aln_method=method,
             replace_reference=True)
         return am.c_to_g(self.data)

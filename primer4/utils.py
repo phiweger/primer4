@@ -459,7 +459,16 @@ def sync_tx_with_feature_db(tx, feature_db):
     except gffutils.exceptions.FeatureNotFoundError:
         qry = tx.split('.')[0]
 
+        '''
+        In hg38 but not hg19 there are transcript labels for mitos, remove them:
+
+        [i for i in IDs if len(i.split('.')) != 2]
+        '''
+        # TODO: Calculate this once and then only lookup?
+        mitos = set(['ND2', 'COX1', 'ND5', 'CYTB', 'COX3', 'ND4', 'ND1', 'ND3', 'ATP6', 'COX2', 'ND4L', 'ATP8', 'ND6'])
         IDs = set(i.id.replace('rna-', '') for i in feature_db.features_of_type('mRNA'))
+        IDs = IDs.difference(mitos)
+
         ID_version = {k: v for k, v in [i.split('.') for i in IDs]}
         
         try:

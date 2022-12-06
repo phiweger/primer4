@@ -75,3 +75,8 @@ You should see something like this (modify `tracks.empty.ini` to adjust the plot
 <p align="center">
     <img src="img/interface.png" alt="Interface" width="700">
 </p>
+
+
+## Data
+
+See how to obtain or create the required [data](https://github.com/phiweger/primer4/data.md).

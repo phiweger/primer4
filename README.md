@@ -79,4 +79,4 @@ You should see something like this (modify `tracks.empty.ini` to adjust the plot
 
 ## Data
 
-See how to obtain or create the required [data](https://github.com/phiweger/primer4/data.md).
+See how to obtain or create the required [data](data.md).

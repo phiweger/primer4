@@ -220,6 +220,7 @@ def prepare_data_for_vis(v, tmp, primers):
     with open(tmp_fp / 'gc.bedgraph', 'w+') as out:
         out.write(result)
 
+    gene_name = tmp.feat.attributes.get('gene')[0]
 
     content_tracks_spec = {
         'query_fp': str(tmp_fp / 'query.bed'),
@@ -229,6 +230,7 @@ def prepare_data_for_vis(v, tmp, primers):
         'mask_fp': str(tmp_fp / 'mask.bedgraph'),
         'primers_fp': str(tmp_fp / 'primers.bed'),
         'exons_fp': str(tmp_fp / 'exons.bed'),
+        'gene_name': gene_name,
     }
 
     

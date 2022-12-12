@@ -235,7 +235,8 @@ def check_for_multiple_amplicons(primers, fp_genome, params):
     '''
     command = '; '.join(steps)
     print(log(f'Search alternative binding sites for {len(primers)} pair(s)'))
-    log_blast = subprocess.run(command, capture_output=True, shell=True)
+    _ = subprocess.run(command, capture_output=True, shell=True)
+    # log_blast = ...
     # print(log_blast)
 
     result = Path(p) / 'result'
@@ -322,8 +323,7 @@ def check_for_multiple_amplicons(primers, fp_genome, params):
     # Lookup for alignment string:
     # ('139b465b', 'rev'): '...||................'
 
-    #import pdb
-    #pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     unique = set([i.split('.')[0] for i in df['qseqid']])
     

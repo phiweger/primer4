@@ -198,8 +198,6 @@ def dereplicate(primers):
     return results
 
 
-# TODO: expose variables
-# TODO: rethink settings, see TODO list
 def check_for_multiple_amplicons(primers, fp_genome, params):
     '''
     Params mostly from ISPCR from UCSC genome browser:
@@ -384,6 +382,7 @@ def check_for_multiple_amplicons(primers, fp_genome, params):
                 # print(j['qseqid'], j['sseqid'], j['sstart'], j['send'])
 
     # We should only find one pair for each, which is the amplicon we want.
+    # import pdb; pdb.set_trace()
     results = []
     for primer in primers:
         if cnt[primer.name] <= mx_amplicon_n:

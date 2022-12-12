@@ -178,25 +178,65 @@ def gimme_some_primers(method, code, fp_genome, genome, hdp, db, vardbs, params,
     
     
     if blind_search:
-        print(log('Dereplicating primers from two search cycles (with and without SNVs)'))
         primers = dereplicate(primers)
+        print(log(f'Dereplicated primers from two search cycles (with and without SNVs): {len(primers)}'))
 
-    mx = params['primers']['check_max_num_candidates']
-    primers = sort_by_penalty(primers)[:mx]
+    mx_cand = params['primers']['check_max_num_candidates']
+    mx = params['n_return']
+    
+    # import pdb; pdb.set_trace()
+    from collections import deque
+    primers_copy = deque(sort_by_penalty(primers))
 
-    results, aln = check_for_multiple_amplicons(primers, fp_genome, params)
+    seen = 0
+    all_results, all_aln = [], []
+    batch_size = 10
+    
+    while True:
+        batch = []
+        for i in range(batch_size):
+            try:
+                left = primers_copy.popleft()
+                batch.append(left)
+            except IndexError:
+                # IndexError: pop from an empty deque
+                pass
+        
+        if batch:
+            # Can be empty if number of primers %% 10 == 0
+            results, aln = check_for_multiple_amplicons(batch, fp_genome, params)
+            all_results += results
+            all_aln += aln
+            seen += len(batch)
+        else:
+            break
+
+        if len(all_results) >= mx:
+            break
+        elif seen >= mx_cand:
+            break
+        else:
+            continue
+        
     # Until now, we have only checked the alignment of primers to the
     # reference genome -- any "variants" are really mapping mismatches.
     # In the case of designing primers while ignoring SNVs, we need to
     # add those SNVs back in.
 
+    # import pdb; pdb.set_trace()
+    # if len(results) == 0:
+    #     print(log('Round 2'))
+    #     primers = sort_by_penalty(primers)[mx:(2*mx)]
+    #     results, aln = check_for_multiple_amplicons(primers, fp_genome, params)
+
     #import pdb
     #pdb.set_trace()
     
-    msg = f'{len(results)}/{len(primers)} primer pairs pass all filters'
+    msg = f'{len(all_results)}/{seen} primer pairs pass all filters'
     print(log(msg))
     st.write(msg)
-    return results, tmp, aln
+    # Results are sorted so we can just return the top mx elements.
+    return all_results[:mx], tmp, all_aln[:mx]
 
 
 def load_chromosome_names(fn):

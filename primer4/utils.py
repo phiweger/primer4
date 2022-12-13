@@ -476,7 +476,7 @@ def sync_tx_with_feature_db(tx, feature_db):
             new_tx = f'{qry}.{v}'
         
         except KeyError:
-            raise ValueError(f'No matching transcrit (any version) for {qry}')
+            raise ValueError(f'No matching transcript (any version) for {qry}')
 
         #st.warning(f'Transcript ID not found, version mismatch? Will use {new_tx} instead.')
         click.echo('\n' + log('Warning!\n'))

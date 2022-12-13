@@ -1,3 +1,4 @@
+from collections import Counter
 import re
 from uuid import uuid4
 
@@ -5,6 +6,7 @@ import click
 from gffutils.feature import Feature
 import hgvs
 from hgvs.assemblymapper import AssemblyMapper
+import numpy as np
 import pyfaidx
 from pysam import VariantFile
 
@@ -13,10 +15,12 @@ from primer4.space import pythonic_boundaries
 from primer4.utils import (
     convert_chrom,
     gc_map,
-    load_variation,
+    load_variation_freqs,
     log,
     manual_c_to_g,
-    sync_tx_with_feature_db)
+    find_nearest,
+    )
+    # sync_tx_with_feature_db)
 
 
 class Variant():
@@ -36,7 +40,13 @@ class Variant():
 
     - NM_015015.3:c.2441+1G>A
     '''
-    def __init__(self, code, coords, feature_db):
+    def __init__(self, code, coords, version='hg19'):
+        versions = {
+            'hg19': 'GRCh37',
+            'hg38': 'GRCh38',
+        }
+        self.version = versions[version] 
+        
         self.code = code
         self.data = self.parse_code(code)
         self.g = None
@@ -57,31 +67,43 @@ class Variant():
         self.g_start = self.g.posedit.pos.start.base
         self.g_end = self.g.posedit.pos.end.base
 
-        # Overwrite tx version to sync w/ annotation; v.tx and v.data.ac
-        self.tx = sync_tx_with_feature_db(self.tx, feature_db)
-
     def __repr__(self):
         return self.code
 
     def parse_code(self, code):
         hp = hgvs.parser.Parser()
-        try:
-            return hp.parse_hgvs_variant(code)
-        except hgvs.exceptions.HGVSParseError:
-            if ed := is_exon_deletion(code):
-                return ed
-            else:
-                # click.echo(log('Invalid HGVS syntax, exit.'))
-                print('Variant cannot be HGVS-parsed!')
-                return None
+        return hp.parse_hgvs_variant(code)
+        
+        #try:
+        #    return hp.parse_hgvs_variant(code)
+        #except hgvs.exceptions.HGVSParseError:
+        #    return None
+            #delta = ExonDelta(code)
+            # if ed := is_exon_deletion(code):
+            #     return ed
+            #if delta.is_delta():
+            #    return delta
+            #
+            #else:
+            #    # click.echo(log('Invalid HGVS syntax, exit.'))
+            #    print('Variant cannot be HGVS-parsed!')
+            #    return None
 
-    def map_to_genomic(self, tx_map, genome_version='GRCh37', method='splign'):
+    def map_to_genomic(self, tx_map, method='splign'):
         am = AssemblyMapper(
             tx_map,
-            assembly_name=genome_version,
+            assembly_name=self.version,
             alt_aln_method=method,
             replace_reference=True)
         return am.c_to_g(self.data)
+
+    def get_genomic_coords(self, template):
+        start = template.c_to_g[self.start] + self.start_offset
+        end = template.c_to_g[self.end] + self.end_offset
+        # .bed fmt requires that start be smaller then end position
+        if start > end:
+            start, end = end, start
+        return template.feat.chrom, start, end
 
 
 class ExonDelta():
@@ -127,12 +149,12 @@ class ExonDelta():
         try:
             # Try to parse code
             tx = m.group(1)
-            tx = sync_tx_with_feature_db(tx, feature_db)
+            #tx = sync_tx_with_feature_db(tx, feature_db)
         except AttributeError:
             # Not an exon delta;
             # AttributeError: 'NoneType' object has no attribute 'group'
             tx = code.split(':')[0]
-            tx = sync_tx_with_feature_db(tx, feature_db)
+            #tx = sync_tx_with_feature_db(tx, feature_db)
             return tx, False, set()
 
         is_coding = True if m.group(2) == 'c' else False
@@ -211,12 +233,17 @@ class Template():
     def __init__(self, mutation, feature_db, featuretype='exon'):
         self.data = mutation
         self.type = type(mutation)  # Template(v, db).type == Variant
+        self.tx = mutation.tx
         self.feat = feature_db[f'rna-{mutation.tx}']
-        self.region = list(feature_db.region(
-            region=(self.feat.chrom, self.feat.start, self.feat.end),
-            featuretype=featuretype))
+        self.region = list(
+            feature_db.region(
+                region=(self.feat.chrom, self.feat.start, self.feat.end),
+                featuretype=featuretype
+                )
+            )
         self.start, self.end = pythonic_boundaries(self.feat)
         self.mask = set()
+        self.mask_freqs = {}
         self.methods = {
             'sanger': sanger,
             'qpcr':   qpcr,
@@ -231,6 +258,7 @@ class Template():
         self.c_to_g, self.g_to_c = gc_map(mutation.tx, feature_db)
         # TODO: Maybe duplicate code here to self.feat
         self.mrna = ()
+        self.exons = self.get_exons(feature_db)
 
     def __repr__(self):
         return self.feat.__repr__()
@@ -244,10 +272,21 @@ class Template():
         # assert len(s) == len(self.feat)
         return s
 
+    def get_sequence_(self, genome):
+        s = genome[self.feat.chrom][self.start:self.end].__str__()
+        # assert len(s) == len(self.feat)
+        self.sequence = s
+        return None
+
     def relative_pos(self, n):
+        # n .. genomic position
         # Primer3 needs positions relative to sequence (when masking etc.)
         # Turns genomic coordinate into relative one
         return n - self.start
+
+    def invert_relative_pos(self, n):
+        # n .. relative position
+        return self.start + n
     
     def apply(self, fn, feature_db, params, *args, **kwargs):
         # Check that we apply the right fn to the right data type
@@ -256,10 +295,75 @@ class Template():
         # Apply fn
         return self.methods[fn](self, feature_db, params, *args, **kwargs)
 
-    def load_variation_(self, databases, max_variation=0.01):
-        self.mask, self.mask_freqs = load_variation(
-            self.feat, databases, max_variation)
+    def load_variation_freqs_(self, databases, params):
+        self.mask_freqs, self.mask_freqs_filtered = load_variation_freqs(
+            self.feat, databases, params)
         return None
+
+    def load_variation_(self, max_variation=0.01):
+        assert self.mask_freqs_filtered, 'Please load SNV frequencies first'
+        mask = set()
+        for rel_pos, snvs in self.mask_freqs_filtered.items():
+            for db, freq in snvs:
+                if freq > max_variation:
+                    mask.add(rel_pos)
+        self.mask = mask
+        return None
+
+    def get_exons(self, feature_db):
+        '''
+        Get all exons for the template's transcript and sort them by their start
+        position, ie exons with a smaller genomic coordinate apprear first.
+
+        Returns a dict, where keys are the exon number in the mRNA and values
+        are the "genomic feature" objects (here exons) from gffutils.
+
+        https://daler.github.io/gffutils/autodocs/gffutils.interface.FeatureDB.region.html
+        '''
+        #import pdb
+        #pdb.set_trace()
+        
+        tx = self.data.tx
+        features = {}
+        for i in self.region:
+            # tmp.region[-1].id
+            # 'exon-NM_001143991.2-1'
+            try:
+                featuretype, name, number = i.id.split('-')
+            except ValueError:
+                # ValueError: not enough values to unpack (expected 3, got 2)
+                # ['exon', 'NM_173500.4', '10']
+                # ['id', 'KRT8P50']
+                # ['exon', 'NM_173500.4', '9']
+                continue
+            if featuretype == 'exon' and name == tx:
+                start, end = sorted([i.start, i.end])
+                features[start] = (number, i)
+            
+        exons = {int(number): i for k, (number, i) in sorted(features.items())}
+        return exons
+
+
+    def map_genomic_coord_to_coding(self, coord):
+        try:
+            c = self.g_to_c[coord]
+            return c
+        except KeyError:
+            # Primer coords falls outside of coding regions
+            genomic_coords = np.array([k for k in self.g_to_c.keys()])
+            nearest = find_nearest(genomic_coords, coord)
+            if nearest > coord:
+                delta = nearest - coord
+                return f'{self.g_to_c[nearest]}-{delta}'
+            else:
+                # nearest == coord does not occur here
+                delta = coord - nearest
+                return f'{self.g_to_c[nearest]}+{delta}'
+
+
+
+
+
 
     # def mask_sequence(self, genome, mask='N', unmasked=''):
     #     s = self.get_sequence(genome)
@@ -283,6 +387,8 @@ class PrimerPair():
         "sequence": "ACGTCTGAAAATGACCCTCACT",
         "Tm": 59.63
     }
+
+    TODO: Add mismatches
     '''
     def __init__(self, d):
         self.name = uuid4().__str__().split('-')[0]
@@ -293,44 +399,47 @@ class PrimerPair():
                setattr(self, a, [PrimerPair(x) if isinstance(x, dict) else x for x in b])
             else:
                setattr(self, a, PrimerPair(b) if isinstance(b, dict) else b)
+        self.offset = 0  # store amplicon len offset when in mRNA mode
 
     def __repr__(self):
         return f'{self.fwd.start}-{self.fwd.end}:{self.rev.start}-{self.rev.end}, loss: {self.penalty}'
-
-    def to_g(self, template):
-        '''
-        Translate primer coords into genomics ones.
-        '''
-        fwd_start = template.feat.start + self.fwd.start
-        fwd_end   = template.feat.start + self.fwd.end
-        rev_start = template.feat.start + self.rev.start
-        rev_end   = template.feat.start + self.rev.end    
-    
-        return [fwd_start, fwd_end, rev_start, rev_end]
-
-    def to_c(self, template):
-        '''
-        Translate primer coords into coding ones.
-
-        TODO: Can take genomic position and query template for the start of
-        the closest exon, or pass spanned exon and calc distance then write
-        coding_start - difference.
-
-        If its on the exon, have this position, else return the start of the
-        exon?
-        '''
-        # TODO: Does not work if non-coding position
-        return [template.g_to_c[i] for i in self.to_g(template)]
-        '''
-        TODO: Get the closest coding position, then do +- x.
-        '''
-        # qry = 7579200
-        # nearest_g = min(tmp.g_to_c.keys(), key=lambda x: abs(x - qry))
-        # nearest_c = tmp.g_to_c[nearest_g]
-        # str(qry - nearest_g)  # -112
-        # TODO: start or end of primer reference here ie -132 oder -112
 
     def save(self, fp):
         with open(fp, 'w+') as out:
             for i in ['fwd', 'rev']:
                 out.write(f'>{self.name}.{i}\n{self.data[i]["sequence"]}\n')
+
+    def get_amplicon_len(self):
+        if self.offset:
+            return self.rev.end - self.fwd.start - self.offset  # mRNA
+        else:
+            return self.rev.end - self.fwd.start  # Sanger, qPCR
+
+    def get_gc(self, direction):
+        seq = self.data[direction]['sequence']
+        cnt = Counter(seq)
+        return round((cnt['C'] + cnt['G']) / len(seq), 4)
+
+    def get_genomic_coords(self, template, orient=None):
+        if not orient or orient not in ['fwd', 'rev']:
+            raise ValueError('Please provide an orientation [fwd|rev]')
+        chrom = template.feat.chrom
+        start = template.invert_relative_pos(self.data[orient]['start'])
+        end = template.invert_relative_pos(self.data[orient]['end'])
+        if not start < end:
+            start, end = end, start
+        start += 1  # + 1 bc/ SNPcheck validation 
+        return chrom, start, end
+
+    def get_coding_coords(self, template, orient=None):
+        if not orient or orient not in ['fwd', 'rev']:
+            raise ValueError('Please provide an orientation [fwd|rev]')
+
+        chrom, g_start, g_end = self.get_genomic_coords(template, orient)
+        c_start = template.map_genomic_coord_to_coding(g_start)
+        c_end = template.map_genomic_coord_to_coding(g_end)
+        return chrom, c_start, c_end
+
+
+
+

@@ -2,6 +2,7 @@ def context(variant, feature_db, featuretype='exon'):
     '''
     context(v, db, 'exon')
     '''
+    # import pdb; pdb.set_trace()
     chrom = variant.chrom
     start = variant.g.posedit.pos.start.base
     end = variant.g.posedit.pos.end.base

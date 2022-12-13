@@ -8,8 +8,9 @@ def sanger(template, feature_db, params):
     '''
     mn, mx = params['size_range_PCR']
     burnin = params['burnin_sanger']
+    min_search_space_primer = 100
 
-    pad = burnin * 2 + 100
+    pad = burnin*2 + min_search_space_primer
     # x2 bc/ burnin on both sides of variant, 100 is space to search primers in 
     variant = template.data
     ex = context(variant, feature_db, 'exon')
@@ -22,17 +23,24 @@ def sanger(template, feature_db, params):
     else:
         # Cannot span exon
         # center + pad, rest primer
-        
         lb = variant.g_start - burnin
         rb = variant.g_end + burnin
 
-    # Primer3 takes (start, length) constraints
+    # Primer3 takes (start, length) constraints; make sure they don't fall
+    # outside the template boundaries.
     rlb = template.relative_pos(lb)
+    if rlb < (burnin + min_search_space_primer):
+        rlb = burnin + min_search_space_primer
+    
     rrb = template.relative_pos(rb)
-    return {
+    if rrb > len(template) - (burnin + min_search_space_primer):
+        rrb = len(template) - (burnin + min_search_space_primer)
+    
+    spec = {
         'only_here': ((0, rlb), (rrb, len(template) - rrb)),
-        'size_range': (mn, mx)
-    }
+        'size_range': (mn, mx)}
+    #print(spec)
+    return spec
 
 
 def qpcr(template, feature_db, params):
@@ -60,8 +68,8 @@ def qpcr(template, feature_db, params):
             ),
         'size_range': (mn, mx)
     }
-    # right
 
+    # right
     rrb = template.relative_pos(l[right].start)  # rrb .. relative right bound
     cr = {
         'only_here': (
@@ -74,10 +82,10 @@ def qpcr(template, feature_db, params):
 
 
 def mrna(template, feature_db, params):
-    if not template.mrna:
-        raise ValueError('Please reconstruct the mRNA first')
-    
-    mrna, exons, coords, labels = template.mrna
+    # if not template.mrna:
+    #     raise ValueError('Please reconstruct the mRNA first')
+    '''
+    mrna, boundaries, offset = template.mrna
 
     here = []
     for exon in template.data.data[1:]:
@@ -85,11 +93,21 @@ def mrna(template, feature_db, params):
         mn, mx = min(x), max(x)
         here.append((mn, mx-mn))
 
+    rng = [i+offset for i in params['size_range_mRNA']]
+
     constraints = {
         'only_here': tuple(here),
-        'size_range': tuple(params['size_range_mRNA'])
+        'size_range': tuple(rng)
     }
+    '''
+    _, boundaries, offset = template.mrna
+    rng = [i+offset for i in params['size_range_mRNA']]
 
+    constraints = {
+        'only_here': tuple(boundaries),
+        'size_range': tuple(rng)
+    }
+    
     return constraints
 
 

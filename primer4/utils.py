@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 import datetime
 from difflib import get_close_matches
 from itertools import chain, zip_longest
@@ -9,22 +9,15 @@ import pdb
 import sys
 
 import click
+import gffutils
+import numpy as np
 from hgvs.parser import Parser
 # https://github.com/biocommons/hgvs
 import primer3
 from pysam import VariantFile
 
 
-# https://stackoverflow.com/questions/1270951/how-to-refer-to-relative-paths-of-resources-when-working-with-a-code-repository
-fn = Path(__file__).parents[1] / 'chrom_names.csv'
-chrom_names = {}
-with open(fn, 'r') as file:
-    for line in file:
-        k, v = line.strip().split(',')
-        chrom_names[k] = v
-
-
-def convert_chrom(chrom):
+def convert_chrom(chrom, chrom_names):
     return chrom_names.get(chrom)
 
 
@@ -186,7 +179,6 @@ def exon_context(name, exon, db, params):
     s = genome[ex.chrom][left:right].__str__()
     
     pass
-
 
 
 def variant_context(name, genome, chromosome, g_pos, db, params):
@@ -431,6 +423,7 @@ def manual_c_to_g(tx, c, feature_db):
     return g
 
 
+'''
 def sync_tx_with_feature_db(tx, feature_db):
     # Generate a list of valid IDs so we can validate input:
     IDs = set(i.id.replace('rna-', '') for i in feature_db.features_of_type('mRNA'))
@@ -445,11 +438,51 @@ def sync_tx_with_feature_db(tx, feature_db):
         click.echo('\n' + log('Warning!\n'))
         click.echo(f'Transcript ID not found, version mismatch? Will use {name} instead.')
         # click.echo(f'Not what you want? How about: {m[0]}, {m[1]} or {m[2]}?')
-        chromosome = feature_db[f'rna-{name}'].chrom
+        # chromosome = feature_db[f'rna-{name}'].chrom
         return tx
 
     else:
         return tx
+'''
+
+
+def sync_tx_with_feature_db(tx, feature_db):
+    '''
+    Make sure the required transcript has an annotation in the feature db, or
+    else try to "guess" the right one.
+    '''
+    # Generate a list of valid IDs so we can validate input:
+    try:
+        _ = feature_db[f'rna-{tx}']
+        return tx
+
+    except gffutils.exceptions.FeatureNotFoundError:
+        qry = tx.split('.')[0]
+
+        '''
+        In hg38 but not hg19 there are transcript labels for mitos, remove them:
+
+        [i for i in IDs if len(i.split('.')) != 2]
+        '''
+        # TODO: Calculate this once and then only lookup?
+        mitos = set(['ND2', 'COX1', 'ND5', 'CYTB', 'COX3', 'ND4', 'ND1', 'ND3', 'ATP6', 'COX2', 'ND4L', 'ATP8', 'ND6'])
+        IDs = set(i.id.replace('rna-', '') for i in feature_db.features_of_type('mRNA'))
+        IDs = IDs.difference(mitos)
+
+        ID_version = {k: v for k, v in [i.split('.') for i in IDs]}
+        
+        try:
+            v = ID_version[qry]
+            new_tx = f'{qry}.{v}'
+        
+        except KeyError:
+            raise ValueError(f'No matching transcript (any version) for {qry}')
+
+        #st.warning(f'Transcript ID not found, version mismatch? Will use {new_tx} instead.')
+        click.echo('\n' + log('Warning!\n'))
+        click.echo(f'Transcript ID not found, version mismatch? Will use {new_tx} instead.')
+
+        return new_tx
 
 
 def gc_map2(tx, feature_db):
@@ -472,7 +505,6 @@ def gc_map2(tx, feature_db):
 
         assert max(map_.keys()) == cum
     return map_, dict((v, k) for k, v in map_.items())
-
 
 
 def gc_map(tx, feature_db):
@@ -535,7 +567,7 @@ def parse_snpdb(line):
         return max(l)
 
 
-def load_variation(feat, databases, max_variation):
+def load_variation_freqs(feat, databases, params):
     '''
     feat .. gffutils feature type
     
@@ -548,57 +580,70 @@ def load_variation(feat, databases, max_variation):
     2060: [('dbSNP', 7.556e-06)],
     ...
     '''
-    mask = set()
     freqs = defaultdict(list)
+    skip = 0
 
     for name, db in databases.items():
         variants = VariantFile(db)
 
         # dbSNP names chromosomes like "NC_000007.13", others like "7"
         if name != 'dbSNP':
-            vv = variants.fetch(convert_chrom(feat.chrom), feat.start, feat.end)
+            chrom_names = params['cn']
+            vv = variants.fetch(convert_chrom(feat.chrom, chrom_names), feat.start, feat.end)
         else:
             vv = variants.fetch(feat.chrom, feat.start, feat.end)
 
         for i in vv:
             # .info.get(...) raises ValueError: Invalid header if not there
             info = dict(i.info)
+            # dict_keys(['RS', 'dbSNPBuildID', 'SSR', 'GENEINFO', 'VC', 'R5', 'GNO', 'FREQ'])
             # pos = i.pos - feat.start - 1  # TODO: -1 here?
             pos = i.pos - feat.start
+
+            assert i.stop > i.start
+            delta = i.stop - i.start
+            if delta > params['snv_filter']['max_snv_len']:
+                skip += 1
 
             # TODO: missing "max_variation"
             if name == 'dbSNP':
                 if info.get('FREQ'):
                     x = parse_snpdb(','.join(info.get('FREQ')))
-                    freqs[pos].append((name, x))
-                    # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', 7.96 ...
-                    if x >= max_variation:
-                        mask.add(pos)
+                    # For some reason some SNVs in the databases have 0 freq.
+                    if x != 0:
+                        freqs[pos].append((name, x))
+                        # 19045: [('dbSNP', 0.0001193)], 19046: [('dbSNP', ...
 
                 #if info.get('COMMON'):
                 #    # print(name, x)
                 #    mask.add(pos)
 
             elif name == '1000Genomes':
+                #import pdb
+                #pdb.set_trace()
                 x = float(info['AF'][0])
-                freqs[pos].append((name, x))
-                if x >= max_variation:
-                    mask.add(pos)
+                # {'AC': (1,), 'AF': (0.000199681002413854,), 'AN': 5008, 'NS': 2504, 'DP': 10039, 'EAS_AF': (0.0,), 'AMR_AF': (0.0,), 'AFR_AF': (0.0007999999797903001,), 'EUR_AF': (0.0,), 'SAS_AF': (0.0,), 'AA': 'A|||', 'VT': ('SNP',)}
+                if x != 0:
+                    freqs[pos].append((name, x))
             
             elif name == 'ESP':
                 x = float(info['MAF'][0]) / 100  # in database from 1 .. 100
-                freqs[pos].append((name, x))
-                if x >= max_variation:
-                    mask.add(pos)
+                if x != 0:
+                    freqs[pos].append((name, x))
 
             else:
                 print(f'"{name}" is not a valid variant database')
+    
 
-    return mask, freqs
+    before = len(freqs)
+    filt = {k: v for k, v in freqs.items() if len(v) >= params['snv_filter']['min_databases']}
+    after = len(filt)
+    print(log(f'Include {after} SNVs, {skip} SNVs too large, removed {before-after} singletons'))
+
+    return freqs, filt
 
 
 def mask_sequence(seq, var, mask='N', unmasked=''):
-    
     if unmasked:
         masked = ''.join([mask if ix in var else unmasked for ix, i in enumerate(seq)])
     else:
@@ -606,26 +651,87 @@ def mask_sequence(seq, var, mask='N', unmasked=''):
     return masked.upper()
 
 
-def reconstruct_mrna(tx, feature_db, genome, vardbs):
+# def reconstruct_mrna(tmp, feature_db, genome):
+def reconstruct_mrna(tmp, feature_db):
+
+    target_exons = set([tmp.data.exon1, tmp.data.exon2])
+    assert len(target_exons) == 2
+
+    tx = tmp.feat
     exons = {}
     for e in feature_db.children(tx, featuretype='exon', order_by='start'):
-        exons[int(e.id.split('-')[-1])] = e
+        exons[int(e.id.split('-')[-1])] = e  # eg "exon-4" > 4 
 
-    reconstruction = ''
-    coords = []
-    segmentation = []
+    # reconstruction = ''
+    # coords = []
+    # segmentation = []
 
     # print(exons)
-    for k in sorted(exons.keys()):
-        ex = exons[k]
-        
-        # seq = ex.sequence(genome).upper()  # accounts for strand
+    tmp_seq = tmp.sequence.upper()
+    target_pos = set()
 
+    boundaries = []
+
+    for k in target_exons:
+        ex = exons[k]
         #seq = sequence[ex.start:ex.end+1]
         #print(sequence[:10], ex.start, ex.end)
+        #seq = ex.sequence(genome).upper()   # accounts for strand
+        #assert len(seq) == len(ex)
         
-        seq = ex.sequence(genome).upper()
+        # Don't reconstruct but fill sequence w/ Ns where no exon does not work,
+        # because we have the length constraint of the amplicon. Or we simply
+        # add the distance between the two selected exons.
+        # start, end = ex.start, ex.end+1
+        # if start > end:
+        #     start, end = end, start
+
+        pos = list(range(ex.start, ex.end+1))
+        # if ex.strand == '-':
+        #     pos = list(reversed(pos))
+
+        boundaries.append(
+            sorted(
+                [tmp.relative_pos(i) for i in [pos[0], pos[-1]]]))
+        
+        # Mark positions where primers are allowed to bind
+        for i in pos:
+            ix = tmp.relative_pos(i)
+            # tmp.start == tmp.invert_relative_pos(0) == 7571738
+            target_pos.add(ix)
+    
+    boundaries = sorted(boundaries)
+    x = ''.join([j if i+1 in target_pos else 'N' for i, j in enumerate(tmp_seq)])
+    assert len(x) == len(tmp)
+    # for k in sorted(exons.keys()):
+    #     ex = exons[k]
+    #     seq = ex.sequence(genome).upper()
+    #     #assert seq in x
+
+    # We only mark exons on the template, which still contains introns. We thus
+    # need to add an offset to the desired amplicon range, which needs to
+    # be expanded by the number of Ns between the two exons; note, that if
+    # another exon is spanned, we need to subtract its coding positions from the
+    # offset.
+    left, right = boundaries
+    cnt = Counter(x[left[1]:right[0]+1])
+    offset = cnt['N']
+
+    left, right = sorted(target_exons)
+    for k, ex in exons.items():
+        if left < k < right:
+            offset = offset - len(ex)
+
+    # import pdb
+    # pdb.set_trace()
+    return x, boundaries, offset
+
+
+    '''
         if vardbs:
+            # tmp.mask_freqs_filtered
+            # map mRNA coords to exon coords -- dict
+            # 
             var = load_variation(ex, vardbs)
             seq = mask_sequence(seq, var) 
 
@@ -646,5 +752,15 @@ def reconstruct_mrna(tx, feature_db, genome, vardbs):
     
         segmentation.extend([k] * len(seq))
         coords.extend(pos)
-    
-    return reconstruction, exons, coords, segmentation
+    '''
+    #return reconstruction, exons, coords, segmentation
+
+
+def find_nearest(array, value):
+    '''
+    https://stackoverflow.com/questions/2566412/find-nearest-value-in-numpy-array
+    '''
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
+

@@ -1,9 +1,10 @@
 _sketch.md
 _deprecated
+_deprecated.md
 TODO.md
 
 data
-config_local.json
+config_local_*.json
 
 workflow/results
 workflow/work

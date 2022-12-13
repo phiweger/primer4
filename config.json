@@ -4,7 +4,7 @@
         "reference": "data/GRCh37_latest_genomic.fna",
         "annotation": "data/hg19-p13_annotation_bak.db",
         "coordinates": "data/cdot-0.2.1.refseq.grch37_grch38.json.gz",
-        "sequences": "/path/to/seqrepo/2021-01-29",
+        "sequences": "data/seqrepo/2021-01-29",
         "variation": {
             "dbSNP": "data/GRCh37_latest_dbSNP_all.vcf.gz",
             "1000Genomes": "data/ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.vcf.gz",
@@ -17,7 +17,17 @@
         "max_snv_len": 10
     },
     "primers": {
-        "max_num_candidates": 10
+        "check_max_num_candidates": 100,
+        "mn_3prime_matches": 15,
+        "mx_amplicon_len": 4000,
+        "mx_amplicon_n": 1
+    },
+    "blast": {
+        "word_size": 13,
+        "mx_evalue": 100,
+        "n_cpus": 8,
+        "mx_blast_hits": 10000,
+        "index": "data/redux.fna"
     },
     "n_return": 10,
     "burnin_sanger": 30,

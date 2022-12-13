@@ -217,6 +217,8 @@ def check_for_multiple_amplicons(primers, fp_genome, params):
     mx_blast_hits = params['blast']['mx_blast_hits']
     n_cpus = params['blast']['n_cpus']
 
+    blast_index = params['blast']['index']
+
     tmpdir = tempfile.TemporaryDirectory()
     p = tmpdir.name
 
@@ -226,7 +228,7 @@ def check_for_multiple_amplicons(primers, fp_genome, params):
     fields = 'qseqid sseqid qlen slen pident length mismatch gapopen qstart qend sstart send evalue bitscore nident btop sstrand'
     steps = [
         f'cat {p}/*.fna > {p}/pseudo.fna',
-        f'blastn -dust no -word_size {word_size} -evalue {mx_evalue} -outfmt "6 {fields}" -query {p}/pseudo.fna -db {fp_genome} -num_threads {n_cpus} -out {p}/result'
+        f'blastn -dust no -word_size {word_size} -evalue {mx_evalue} -outfmt "6 {fields}" -query {p}/pseudo.fna -db {blast_index} -num_threads {n_cpus} -out {p}/result'
     ]
     '''
     > The “Blast trace-back operations” (BTOP) string describes the alignment produced by BLAST. -- https://www.ncbi.nlm.nih.gov/books/NBK569862

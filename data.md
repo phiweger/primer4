@@ -24,7 +24,10 @@ conda activate primer4
 wget https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.fna.gz
 gunzip GRCh38_latest_genomic.fna.gz
 samtools faidx GRCh38_latest_genomic.fna
-makeblastdb -in GRCh38_latest_genomic.fna -dbtype nucl
+
+# Remove alternate contigs and other sources of blast confusion
+python ../scripts/prep_genome_4blast.py --genome GRCh37_latest_genomic.fna --out redux.fna
+makeblastdb -in redux.fna -dbtype nucl
 
 # Transcripts
 wget https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.gff.gz

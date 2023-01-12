@@ -99,9 +99,13 @@ def design_primers(masked, constraints, params, previous=[]):
         #from collections import Counter
         #print('Ns:', Counter(masked)['N'])
 
-        if not constraints.get('snvs'):
+        if not 'snvs' in constraints:
             raise ValueError('No constraints')
+        # DEPRECATED: This will err out if there are no SNVs ie 'snvs': {}
+        # if not constraints.get('snvs'):
+        #     raise ValueError('No constraints')
 
+        # import pdb; pdb.set_trace()
         d = project_mask_onto_primers(
             best, constraints['snvs'], params['primers']['mn_3prime_matches'])
         
